@@ -1,0 +1,16 @@
+# FacultyConnect crawl policy
+# Public faculty profiles are indexable; authenticated app routes are not.
+
+User-agent: *
+Allow: /f/
+Allow: /$
+Allow: /login
+Allow: /signup
+
+Disallow: /home
+Disallow: /profile
+Disallow: /discover
+Disallow: /jobs
+Disallow: /directory
+Disallow: /requests
+Disallow: /admin/

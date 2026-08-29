@@ -1,0 +1,27 @@
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700;800&display=swap');
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --color-primary: #6C5CE7;
+  --color-primary-hover: #5A4BD6;
+  --color-secondary: #1A237E;
+  --color-bg-card: #FFFFFF;
+  --color-text-light: #1F2937;
+  --color-text-muted: #6B7280;
+  --color-success: #00B894;
+  --color-border: #E5E7EB;
+  --color-danger: #f43f5e;
+  --font-main: 'Outfit', sans-serif;
+}
+
+* { @apply box-border; }
+
+body {
+  @apply font-main bg-bg-dark text-text-light;
+  min-height: 100vh;
+}
+
+.no-scrollbar::-webkit-scrollbar { display: none; }
+.no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }

@@ -1,0 +1,88 @@
+import * as opportunityService from '../services/opportunity.service.js';
+import {
+  listOpportunitiesQuerySchema,
+  createOpportunitySchema,
+} from '../schemas/opportunity.schema.js';
+
+export async function listHandler(req, res) {
+  const parsed = listOpportunitiesQuerySchema.safeParse(req.query);
+  if (!parsed.success) {
+    const details = parsed.error.issues.map(i => ({ path: i.path.join('.'), message: i.message }));
+    return res.status(400).json({
+      error: { code: 'VALIDATION_ERROR', message: 'Invalid query', details },
+    });
+  }
+  try {
+    const result = await opportunityService.listOpportunities(parsed.data);
+    return res.status(200).json(result);
+  } catch (error) {
+    return res.status(error.status || 500).json({
+      error: { code: error.code || 'LIST_FAILED', message: error.message },
+    });
+  }
+}
+
+export async function detailHandler(req, res) {
+  try {
+    const opp = await opportunityService.getOpportunityById(req.params.id);
+    return res.status(200).json({ opportunity: opp.toPublicJSON() });
+  } catch (error) {
+    return res.status(error.status || 500).json({
+      error: { code: error.code || 'DETAIL_FAILED', message: error.message },
+    });
+  }
+}
+
+export async function listBookmarksHandler(req, res) {
+  try {
+    const opportunities = await opportunityService.listBookmarks(req.user.id);
+    return res.status(200).json({ opportunities });
+  } catch (error) {
+    return res.status(error.status || 500).json({
+      error: { code: error.code || 'LIST_FAILED', message: error.message },
+    });
+  }
+}
+
+export async function bookmarkHandler(req, res) {
+  try {
+    const result = await opportunityService.toggleBookmark(req.user.id, req.params.id);
+    return res.status(200).json(result);
+  } catch (error) {
+    return res.status(error.status || 500).json({
+      error: { code: error.code || 'BOOKMARK_FAILED', message: error.message },
+    });
+  }
+}
+
+export async function createHandler(req, res) {
+  const parsed = createOpportunitySchema.safeParse(req.body);
+  if (!parsed.success) {
+    const details = parsed.error.issues.map(i => ({ path: i.path.join('.'), message: i.message }));
+    return res.status(400).json({
+      error: { code: 'VALIDATION_ERROR', message: 'Invalid body', details },
+    });
+  }
+  try {
+    const result = await opportunityService.createOpportunity({
+      actor: req.user,
+      input: parsed.data,
+    });
+    return res.status(201).json(result);
+  } catch (error) {
+    return res.status(error.status || 500).json({
+      error: { code: error.code || 'CREATE_FAILED', message: error.message },
+    });
+  }
+}
+
+export async function listMineHandler(req, res) {
+  try {
+    const result = await opportunityService.listMyOpportunities({ actor: req.user });
+    return res.status(200).json(result);
+  } catch (error) {
+    return res.status(error.status || 500).json({
+      error: { code: error.code || 'LIST_FAILED', message: error.message },
+    });
+  }
+}

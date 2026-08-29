@@ -1,0 +1,6 @@
+Cites,Authors,Title,Year,Source,DOI
+340,"LeCun Y., Bengio Y., Hinton G.",Deep learning,2015,Nature,10.1038/nature14539
+128,"Vaswani A., Shazeer N., Parmar N.","Attention is all you need",2017,NeurIPS,10.48550/arXiv.1706.03762
+57,"Kingma D., Ba J.","Adam: a method for stochastic optimization",2014,arXiv,10.48550/arXiv.1412.6980
+89,"Krishnan A., Rao S.","Cross-lingual transfer learning for low-resource Indian languages",2025,ACL,10.18653/v1/2025.acl.demo.42
+23,"Krishnan A.","A survey of ML applications in Indian higher education",2024,Journal of Higher Education Research,
