@@ -179,15 +179,6 @@ export default function Login() {
                 </div>
               </div>
 
-              <div className="flex justify-end -mt-1">
-                <span
-                  className="text-xs text-text-muted opacity-60 cursor-not-allowed"
-                  title="Coming in a future release"
-                >
-                  Forgot password?
-                </span>
-              </div>
-
               <Button
                 type="submit"
                 className="w-full mt-2"

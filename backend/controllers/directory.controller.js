@@ -10,7 +10,7 @@ export async function searchHandler(req, res) {
     });
   }
   try {
-    const result = await directoryService.search(parsed.data);
+    const result = await directoryService.search(parsed.data, req.user.id);
     return res.status(200).json(result);
   } catch (error) {
     return res.status(error.status || 500).json({

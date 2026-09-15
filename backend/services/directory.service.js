@@ -20,13 +20,15 @@ const SORT_MAP = {
   // publications is handled specially below since it isn't a Faculty field
 };
 
-export async function search(filters) {
+export async function search(filters, viewerId) {
   const { q, domain, designation, institutionId, sort, page, limit } = filters;
 
   const query = {
     directoryVisible: true,
     role: 'Faculty',
   };
+  // Never return the requester in their own directory results (FC-07).
+  if (viewerId) query._id = { $ne: viewerId };
   if (designation) query.designation = designation;
   if (institutionId) query.institutionId = institutionId;
   if (domain) {

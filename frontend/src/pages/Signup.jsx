@@ -248,7 +248,7 @@ export default function Signup() {
                 >
                   {DESIGNATIONS.map(d => (
                     <option key={d} value={d}>
-                      {d} Professor
+                      {d === 'Professor' ? 'Professor' : `${d} Professor`}
                     </option>
                   ))}
                 </select>

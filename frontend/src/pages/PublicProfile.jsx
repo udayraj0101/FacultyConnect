@@ -301,37 +301,50 @@ export default function PublicProfile() {
           }
         />
 
-        {/* Metrics */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
-          <StatCard
-            index={0}
-            icon={<Quote size={20} />}
-            color="#6C5CE7"
-            value={profile.citationCount}
-            label="Citations"
-          />
-          <StatCard
-            index={1}
-            icon={<TrendingUp size={20} />}
-            color="#00B894"
-            value={profile.hIndex}
-            label="h-index"
-          />
-          <StatCard
-            index={2}
-            icon={<Award size={20} />}
-            color="#F59E0B"
-            value={profile.i10Index}
-            label="i10-index"
-          />
-          <StatCard
-            index={3}
-            icon={<FileText size={20} />}
-            color="#1A237E"
-            value={profile.publicationCount}
-            label="Publications"
-          />
-        </div>
+        {/* Metrics — suppress citation-derived numbers when we have no
+            publications on file. See FC-05. */}
+        {(() => {
+          const unreconciled =
+            profile.publicationCount === 0 &&
+            (profile.citationCount || profile.hIndex || profile.i10Index);
+          const val = raw => (unreconciled ? '—' : raw ?? 0);
+          const sub = unreconciled ? 'Awaiting publications' : undefined;
+          return (
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
+              <StatCard
+                index={0}
+                icon={<Quote size={20} />}
+                color="#6C5CE7"
+                value={val(profile.citationCount)}
+                label="Citations"
+                sublabel={sub}
+              />
+              <StatCard
+                index={1}
+                icon={<TrendingUp size={20} />}
+                color="#00B894"
+                value={val(profile.hIndex)}
+                label="h-index"
+                sublabel={sub}
+              />
+              <StatCard
+                index={2}
+                icon={<Award size={20} />}
+                color="#F59E0B"
+                value={val(profile.i10Index)}
+                label="i10-index"
+                sublabel={sub}
+              />
+              <StatCard
+                index={3}
+                icon={<FileText size={20} />}
+                color="#1A237E"
+                value={profile.publicationCount}
+                label="Publications"
+              />
+            </div>
+          );
+        })()}
 
         {/* ABOUT */}
         {(profile.bio || populatedLinks.length > 0) && (
