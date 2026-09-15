@@ -1,6 +1,7 @@
 import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
+import cookieParser from 'cookie-parser';
 import helmet from 'helmet';
 import mongoose from 'mongoose';
 import { connectDB } from './config/db.js';
@@ -67,6 +68,7 @@ app.use(
 );
 
 app.use(express.json({ limit: '1mb' }));
+app.use(cookieParser());
 app.use(requestLogger);
 
 app.get('/health', (req, res) => res.json({ status: 'ok', service: 'facultyconnect-api' }));

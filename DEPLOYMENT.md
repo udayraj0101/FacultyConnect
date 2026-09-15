@@ -88,6 +88,10 @@ ORCID_PUBLIC_API_BASE=https://pub.sandbox.orcid.org
 
 FRONTEND_URL=http://<SERVER_IP>:8081
 
+# Leave false while the site is plain HTTP. Flip to true after TLS is in
+# place so the refresh cookie only rides HTTPS requests.
+COOKIE_SECURE=false
+
 # Scopus — leave blank until Elsevier key is available
 ELSEVIER_API_KEY=
 SCOPUS_API_BASE=https://api.elsevier.com

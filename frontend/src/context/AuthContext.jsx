@@ -23,8 +23,8 @@ export function AuthProvider({ children }) {
     return faculty;
   };
 
-  const logout = () => {
-    authService.logout();
+  const logout = async () => {
+    await authService.logout();
     setUser(null);
     logger.info('logout');
   };

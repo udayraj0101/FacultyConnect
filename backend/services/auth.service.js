@@ -115,6 +115,27 @@ export async function login({ email, password }) {
   return { faculty: faculty.toPublicJSON(), ...tokens };
 }
 
+/**
+ * Server-side revocation for the httpOnly refresh cookie. Silently
+ * succeeds when the token is unrecognized so /logout stays idempotent
+ * — a stale or double-tap logout should not surface an error to the
+ * client. Any code path that discovers a token is bad simply drops it.
+ */
+export async function revokeRefreshToken(refreshToken) {
+  let payload;
+  try {
+    payload = jwt.verify(refreshToken, process.env.JWT_REFRESH_SECRET);
+  } catch {
+    return;
+  }
+  if (payload.type !== 'refresh') return;
+  const faculty = await Faculty.findById(payload.id);
+  if (!faculty) return;
+  faculty.refreshTokenHash = null;
+  await faculty.save();
+  logger.info('refresh token revoked', { facultyId: faculty._id.toString() });
+}
+
 export async function refresh({ refreshToken }) {
   let payload;
   try {

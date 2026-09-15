@@ -2,11 +2,12 @@ import { Router } from 'express';
 import rateLimit, { ipKeyGenerator } from 'express-rate-limit';
 import { authenticate } from '../middleware/auth.middleware.js';
 import { validateBody } from '../middleware/validate.js';
-import { signupSchema, loginSchema, refreshSchema } from '../schemas/auth.schema.js';
+import { signupSchema, loginSchema } from '../schemas/auth.schema.js';
 import {
   signupHandler,
   loginHandler,
   refreshHandler,
+  logoutHandler,
   orcidRedirectHandler,
   orcidCallbackHandler,
   onboardingPreviewHandler,
@@ -62,7 +63,13 @@ router.post(
   validateBody(loginSchema),
   loginHandler,
 );
-router.post('/refresh', authIpLimiter, validateBody(refreshSchema), refreshHandler);
+// /refresh reads the httpOnly cookie the previous login/signup set, so
+// there's no body to validate. Rate limited to blunt refresh-loop abuse.
+router.post('/refresh', authIpLimiter, refreshHandler);
+// /logout is idempotent and read-only from the client's POV, but we keep
+// it a POST so browser prefetchers and crawlers don't accidentally sign
+// users out.
+router.post('/logout', logoutHandler);
 
 router.get('/orcid/redirect', authenticate, orcidRedirectHandler);
 router.get('/orcid/callback', orcidCallbackHandler);

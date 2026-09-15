@@ -4,12 +4,15 @@ import { createLogger } from '../utils/logger';
 const logger = createLogger('frontend.api');
 
 const ACCESS_KEY = 'facultyconnect_access_token';
-const REFRESH_KEY = 'facultyconnect_refresh_token';
 const USER_KEY = 'facultyconnect_user';
+// Left over from the pre-cookie refresh flow. Purged on module load so
+// stale tokens don't linger in browsers that carried them across the
+// upgrade. Safe to remove this cleanup after all active sessions have
+// rotated (~30 days).
+localStorage.removeItem('facultyconnect_refresh_token');
 
 export const tokenStorage = {
   getAccess: () => localStorage.getItem(ACCESS_KEY),
-  getRefresh: () => localStorage.getItem(REFRESH_KEY),
   getUser: () => {
     try {
       return JSON.parse(localStorage.getItem(USER_KEY)) || null;
@@ -17,14 +20,12 @@ export const tokenStorage = {
       return null;
     }
   },
-  set: ({ accessToken, refreshToken, user }) => {
+  set: ({ accessToken, user }) => {
     if (accessToken) localStorage.setItem(ACCESS_KEY, accessToken);
-    if (refreshToken) localStorage.setItem(REFRESH_KEY, refreshToken);
     if (user) localStorage.setItem(USER_KEY, JSON.stringify(user));
   },
   clear: () => {
     localStorage.removeItem(ACCESS_KEY);
-    localStorage.removeItem(REFRESH_KEY);
     localStorage.removeItem(USER_KEY);
   },
 };
@@ -32,6 +33,9 @@ export const tokenStorage = {
 const api = axios.create({
   baseURL: import.meta.env.VITE_API_URL || '/v1',
   headers: { 'Content-Type': 'application/json' },
+  // Refresh token lives in an httpOnly cookie now (FC-06); withCredentials
+  // is what tells the browser to send it back to the API.
+  withCredentials: true,
 });
 
 api.interceptors.request.use(config => {
@@ -43,16 +47,16 @@ api.interceptors.request.use(config => {
 let refreshPromise = null;
 
 async function refreshAccessToken() {
-  const refreshToken = tokenStorage.getRefresh();
-  if (!refreshToken) throw new Error('No refresh token');
   const response = await axios.post(
     `${api.defaults.baseURL}/auth/refresh`,
-    { refreshToken },
-    { headers: { 'Content-Type': 'application/json' } },
+    {},
+    {
+      headers: { 'Content-Type': 'application/json' },
+      withCredentials: true,
+    },
   );
   tokenStorage.set({
     accessToken: response.data.accessToken,
-    refreshToken: response.data.refreshToken,
     user: response.data.faculty,
   });
   return response.data.accessToken;

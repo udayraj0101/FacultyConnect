@@ -9,10 +9,55 @@ import { createLogger } from '../utils/logger.js';
 
 const logger = createLogger('auth.controller');
 
+// httpOnly refresh-token cookie (FC-06). httpOnly blocks JS reads so an XSS
+// payload cannot exfiltrate a long-lived session credential. sameSite=lax
+// blocks CSRF on the refresh endpoint while still allowing top-level nav
+// after login. Path is scoped to /v1/auth so the cookie only rides the
+// small handful of endpoints that need it, keeping every other request
+// header-lean. Secure defaults to false because the QA deploy runs plain
+// HTTP; flip COOKIE_SECURE=true in the env when TLS is in place.
+const REFRESH_COOKIE_NAME = 'fc_refresh';
+const REFRESH_COOKIE_PATH = '/v1/auth';
+// Cookie lifetime tracks the refresh JWT default (30d). Cookie expiry is
+// just the browser retention guard — the JWT's own exp claim is the real
+// invariant, so a mismatch here fails closed at verify time.
+const REFRESH_COOKIE_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;
+
+function refreshCookieOptions() {
+  return {
+    httpOnly: true,
+    sameSite: 'lax',
+    secure: process.env.COOKIE_SECURE === 'true',
+    path: REFRESH_COOKIE_PATH,
+    maxAge: REFRESH_COOKIE_MAX_AGE_MS,
+  };
+}
+
+function setRefreshCookie(res, refreshToken) {
+  res.cookie(REFRESH_COOKIE_NAME, refreshToken, refreshCookieOptions());
+}
+
+function clearRefreshCookie(res) {
+  // Passing the same options (minus maxAge) tells the browser to overwrite
+  // the existing cookie rather than dropping a second one on a different
+  // path scope.
+  const { maxAge, ...opts } = refreshCookieOptions();
+  void maxAge;
+  res.clearCookie(REFRESH_COOKIE_NAME, opts);
+}
+
+// Split the { accessToken, refreshToken, faculty } shape returned by the
+// service into a JSON body (access token only) and a Set-Cookie header
+// (refresh token). Keeps the service transport-agnostic.
+function respondWithSession(res, status, { faculty, accessToken, refreshToken }) {
+  setRefreshCookie(res, refreshToken);
+  return res.status(status).json({ faculty, accessToken });
+}
+
 export async function signupHandler(req, res) {
   try {
     const result = await authService.signup(req.body);
-    return res.status(201).json(result);
+    return respondWithSession(res, 201, result);
   } catch (error) {
     return res.status(error.status || 500).json({
       error: { code: error.code || 'SIGNUP_FAILED', message: error.message },
@@ -23,7 +68,7 @@ export async function signupHandler(req, res) {
 export async function loginHandler(req, res) {
   try {
     const result = await authService.login(req.body);
-    return res.status(200).json(result);
+    return respondWithSession(res, 200, result);
   } catch (error) {
     return res.status(error.status || 500).json({
       error: { code: error.code || 'LOGIN_FAILED', message: error.message },
@@ -32,14 +77,39 @@ export async function loginHandler(req, res) {
 }
 
 export async function refreshHandler(req, res) {
+  const refreshToken = req.cookies?.[REFRESH_COOKIE_NAME];
+  if (!refreshToken) {
+    return res.status(401).json({
+      error: { code: 'REFRESH_INVALID', message: 'No refresh session' },
+    });
+  }
   try {
-    const result = await authService.refresh(req.body);
-    return res.status(200).json(result);
+    const result = await authService.refresh({ refreshToken });
+    return respondWithSession(res, 200, result);
   } catch (error) {
+    // On any refresh failure, actively clear the browser cookie so a
+    // subsequent request doesn't loop against the same bad token.
+    clearRefreshCookie(res);
     return res.status(error.status || 500).json({
       error: { code: error.code || 'REFRESH_FAILED', message: error.message },
     });
   }
+}
+
+export async function logoutHandler(req, res) {
+  const refreshToken = req.cookies?.[REFRESH_COOKIE_NAME];
+  // Best-effort server-side revocation: if we can verify the token, drop
+  // its hash from the Faculty document so a stolen cookie replay fails
+  // even before it expires.
+  if (refreshToken) {
+    try {
+      await authService.revokeRefreshToken(refreshToken);
+    } catch (error) {
+      logger.warn('logout revoke failed', { code: error.code, message: error.message });
+    }
+  }
+  clearRefreshCookie(res);
+  return res.status(204).end();
 }
 
 export async function orcidRedirectHandler(req, res) {
@@ -100,7 +170,7 @@ export async function onboardingCompleteHandler(req, res) {
     faculty.refreshTokenHash = await bcrypt.hash(refreshToken, 12);
     faculty.lastLogin = new Date();
     await faculty.save();
-    return res.status(200).json({
+    return respondWithSession(res, 200, {
       faculty: faculty.toPublicJSON(),
       accessToken,
       refreshToken,
