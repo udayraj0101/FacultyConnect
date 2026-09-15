@@ -23,6 +23,12 @@ import { startScheduler } from './services/scheduler.service.js';
 const logger = createLogger('server');
 const app = express();
 
+// The API sits behind nginx in prod (see runbook). Without this, req.ip
+// reports the loopback proxy address, which would make per-IP rate limiters
+// treat every request as coming from the same client. `1` = trust exactly
+// one reverse proxy hop; increase if we add another layer.
+app.set('trust proxy', 1);
+
 app.use(cors());
 app.use(express.json({ limit: '1mb' }));
 app.use(requestLogger);
