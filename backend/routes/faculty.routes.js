@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { authenticate } from '../middleware/auth.middleware.js';
-import { validateBody } from '../middleware/validate.js';
+import { validateBody, validateParams, objectIdParamSchema } from '../middleware/validate.js';
 import {
   updateFacultySchema,
   visibilitySchema,
@@ -39,7 +39,11 @@ router.patch(
 
 router.get('/me/publications', listMyPublicationsHandler);
 router.post('/me/publications', addManualPublicationHandler);
-router.delete('/me/publications/:id', deletePublicationHandler);
+router.delete(
+  '/me/publications/:id',
+  validateParams(objectIdParamSchema),
+  deletePublicationHandler,
+);
 router.post('/me/import/orcid', importOrcidWorksHandler);
 router.post('/me/publications/enrich-crossref', enrichCrossrefHandler);
 router.post('/me/import/scopus', importScopusHandler);

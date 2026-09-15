@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { authenticate } from '../middleware/auth.middleware.js';
+import { validateParams, objectIdParamSchema } from '../middleware/validate.js';
 import {
   listHandler,
   summaryHandler,
@@ -13,7 +14,7 @@ router.use(authenticate);
 
 router.get('/', listHandler);
 router.get('/summary', summaryHandler);
-router.patch('/:id/read', markReadHandler);
+router.patch('/:id/read', validateParams(objectIdParamSchema), markReadHandler);
 router.post('/mark-all-read', markAllReadHandler);
 
 export default router;

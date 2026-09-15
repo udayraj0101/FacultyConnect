@@ -1,6 +1,7 @@
 import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
+import mongoose from 'mongoose';
 import { connectDB } from './config/db.js';
 import { requestLogger } from './middleware/requestLogger.js';
 import { createLogger } from './utils/logger.js';
@@ -91,8 +92,32 @@ app.use((req, res) => {
   res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Route not found' } });
 });
 
+// Safety net for anything that slips past route-level validation. Route
+// boundaries validate ObjectId params via validateParams, so a CastError
+// here means either a body-borne id skipped its zod check or a controller
+// forwarded raw input into a Mongoose query. In either case we translate
+// to a clean 400 instead of leaking the ORM message (see FC-03).
 // eslint-disable-next-line no-unused-vars
 app.use((err, req, res, _next) => {
+  if (err instanceof mongoose.Error.CastError) {
+    logger.warn('unhandled cast error', {
+      path: req.originalUrl,
+      kind: err.kind,
+      value: err.value,
+    });
+    return res.status(400).json({
+      error: { code: 'INVALID_ID', message: 'Invalid identifier' },
+    });
+  }
+  if (err instanceof mongoose.Error.ValidationError) {
+    logger.warn('unhandled mongoose validation error', {
+      path: req.originalUrl,
+      fields: Object.keys(err.errors || {}),
+    });
+    return res.status(400).json({
+      error: { code: 'VALIDATION_ERROR', message: 'Invalid input' },
+    });
+  }
   logger.error('unhandled error', { error: err.message, stack: err.stack });
   res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Internal server error' } });
 });

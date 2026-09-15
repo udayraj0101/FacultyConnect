@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import rateLimit from 'express-rate-limit';
 import { authenticate } from '../middleware/auth.middleware.js';
+import { validateParams, objectIdParamSchema } from '../middleware/validate.js';
 import { searchHandler, profileHandler } from '../controllers/directory.controller.js';
 import {
   createHandler as createConnectRequestHandler,
@@ -31,7 +32,7 @@ const router = Router();
 router.use(authenticate);
 
 router.get('/search', searchLimiter, searchHandler);
-router.get('/faculty/:id', profileHandler);
+router.get('/faculty/:id', validateParams(objectIdParamSchema), profileHandler);
 
 // Connect requests — PRD §5.6. Sender-side burst limit as a first defense;
 // the service also enforces a 10/day count against the DB.
@@ -50,7 +51,7 @@ const sendLimiter = rateLimit({
 
 router.get('/connect-requests', listConnectRequestsHandler);
 router.post('/connect-requests', sendLimiter, createConnectRequestHandler);
-router.patch('/connect-requests/:id', respondConnectRequestHandler);
+router.patch('/connect-requests/:id', validateParams(objectIdParamSchema), respondConnectRequestHandler);
 router.get('/connect-requests-summary', connectRequestSummaryHandler);
 router.get('/connections', myNetworkHandler);
 

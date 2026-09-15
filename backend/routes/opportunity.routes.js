@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { authenticate } from '../middleware/auth.middleware.js';
 import { requireRole } from '../middleware/requireRole.js';
+import { validateParams, objectIdParamSchema } from '../middleware/validate.js';
 import {
   listHandler,
   detailHandler,
@@ -27,12 +28,18 @@ router.post(
   requireRole('CollegeAdmin', 'OpportunityOrganizer'),
   createHandler,
 );
-router.get('/:id', detailHandler);
-router.post('/:id/bookmark', authenticate, bookmarkHandler);
+router.get('/:id', validateParams(objectIdParamSchema), detailHandler);
+router.post(
+  '/:id/bookmark',
+  authenticate,
+  validateParams(objectIdParamSchema),
+  bookmarkHandler,
+);
 router.patch(
   '/:id/verification',
   authenticate,
   requireRole('PlatformAdmin'),
+  validateParams(objectIdParamSchema),
   updateOpportunityVerificationHandler,
 );
 

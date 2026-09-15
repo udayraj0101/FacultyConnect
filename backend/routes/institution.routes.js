@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { createHandler, listHandler, detailHandler } from '../controllers/institution.controller.js';
 import { authenticate } from '../middleware/auth.middleware.js';
 import { requireRole } from '../middleware/requireRole.js';
+import { validateParams, objectIdParamSchema } from '../middleware/validate.js';
 import {
   inviteHandler,
   bulkInviteHandler,
@@ -15,7 +16,7 @@ const router = Router();
 
 router.get('/', listHandler);
 router.post('/', createHandler);
-router.get('/:id', detailHandler);
+router.get('/:id', validateParams(objectIdParamSchema), detailHandler);
 
 // -----------------------------------------------------------------
 // College Admin faculty roster management. All scoped implicitly to
@@ -49,12 +50,14 @@ router.patch(
   '/faculty/:id/approve',
   authenticate,
   requireRole('CollegeAdmin'),
+  validateParams(objectIdParamSchema),
   approveHandler,
 );
 router.patch(
   '/faculty/:id/reject',
   authenticate,
   requireRole('CollegeAdmin'),
+  validateParams(objectIdParamSchema),
   rejectHandler,
 );
 

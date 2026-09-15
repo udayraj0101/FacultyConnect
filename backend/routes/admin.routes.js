@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { authenticate } from '../middleware/auth.middleware.js';
 import { requireRole } from '../middleware/requireRole.js';
+import { validateParams, objectIdParamSchema } from '../middleware/validate.js';
 import {
   listVerificationsHandler,
   reviewVerificationHandler,
@@ -18,10 +19,10 @@ router.use(authenticate, requireRole('PlatformAdmin'));
 
 router.get('/overview', platformOverviewHandler);
 router.get('/verifications', listVerificationsHandler);
-router.patch('/verifications/:id', reviewVerificationHandler);
+router.patch('/verifications/:id', validateParams(objectIdParamSchema), reviewVerificationHandler);
 
 router.get('/reports', listReportsForAdminHandler);
-router.patch('/reports/:id', reviewReportHandler);
+router.patch('/reports/:id', validateParams(objectIdParamSchema), reviewReportHandler);
 router.get('/reports-summary', reportsSummaryHandler);
 
 export default router;
