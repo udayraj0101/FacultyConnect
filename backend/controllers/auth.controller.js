@@ -56,7 +56,11 @@ export async function orcidRedirectHandler(req, res) {
 }
 
 function frontendRedirect(res, params) {
-  const base = process.env.FRONTEND_URL || 'http://localhost:5173';
+  // FRONTEND_URL can be a comma-separated allowlist (see server.js CORS
+  // config). For the ORCID callback redirect we just pick the first
+  // entry — that's the primary frontend origin.
+  const raw = process.env.FRONTEND_URL || 'http://localhost:5173';
+  const base = raw.split(',')[0].trim();
   const query = new URLSearchParams(params).toString();
   return res.redirect(`${base}/profile?${query}`);
 }

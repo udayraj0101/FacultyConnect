@@ -1,6 +1,7 @@
 import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
+import helmet from 'helmet';
 import mongoose from 'mongoose';
 import { connectDB } from './config/db.js';
 import { requestLogger } from './middleware/requestLogger.js';
@@ -30,7 +31,41 @@ const app = express();
 // one reverse proxy hop; increase if we add another layer.
 app.set('trust proxy', 1);
 
-app.use(cors());
+// Security headers (FC-06). We disable helmet's default Content-Security-Policy
+// because the /f/:handleOrId route ships inline JSON-LD and the SPA shell
+// includes hashed inline module preloads — enabling CSP without threading
+// nonces through both would break the public profile crawler experience.
+// CSP is worth a separate hardening pass. Everything else stays on:
+// HSTS, X-Content-Type-Options, X-Frame-Options, Referrer-Policy, and
+// suppression of X-Powered-By.
+app.use(
+  helmet({
+    contentSecurityPolicy: false,
+    crossOriginEmbedderPolicy: false,
+  }),
+);
+
+// FRONTEND_URL is expected to be a comma-separated list of allowed origins
+// (e.g. "https://app.example.com,https://preview.example.com"). Falls back
+// to the Vite dev origin so local development keeps working out of the box.
+// Requests with no Origin header (curl, server-to-server, same-origin) are
+// allowed through — CORS is a browser-side control, not an auth boundary.
+const allowedOrigins = (process.env.FRONTEND_URL || 'http://localhost:5173')
+  .split(',')
+  .map(o => o.trim())
+  .filter(Boolean);
+app.use(
+  cors({
+    origin: (origin, cb) => {
+      if (!origin) return cb(null, true);
+      if (allowedOrigins.includes(origin)) return cb(null, true);
+      logger.warn('cors origin denied', { origin });
+      return cb(new Error('Not allowed by CORS'));
+    },
+    credentials: true,
+  }),
+);
+
 app.use(express.json({ limit: '1mb' }));
 app.use(requestLogger);
 
