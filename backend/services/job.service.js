@@ -2,7 +2,10 @@ import { Job } from '../models/Job.js';
 import { Application } from '../models/Application.js';
 import { Institution } from '../models/Institution.js';
 import { Faculty } from '../models/Faculty.js';
-import { emit as emitNotification } from './notification.service.js';
+import { notify } from './notification.service.js';
+import { createLogger } from '../utils/logger.js';
+
+const logger = createLogger('job');
 
 export async function createJob(payload, postedBy) {
   const faculty = await Faculty.findById(postedBy);
@@ -170,14 +173,15 @@ export async function updateApplicationStatus(jobId, applicationId, { status, no
   // Notify the applicant only when the status actually changed — avoids
   // spam if the admin just clicks the current column repeatedly.
   if (previousStatus !== status) {
-    emitNotification({
-      facultyId: app.facultyId,
-      type: 'application_status_changed',
-      title: `Your application status changed to ${status}`,
-      body: `${job.title} at ${job.institutionId?.name || 'the college'}`,
-      link: '/jobs',
-      metadata: { jobId: job._id.toString(), applicationId: app._id.toString(), status },
-    });
+    notify(populated.facultyId, 'application_status_changed', {
+      jobTitle: job.title,
+      institutionName: job.institutionId?.name || '',
+      status,
+      jobId: job._id.toString(),
+      applicationId: app._id.toString(),
+    }).catch(err =>
+      logger.warn('application_status_changed notify failed', { error: err.message }),
+    );
   }
 
   return populated;

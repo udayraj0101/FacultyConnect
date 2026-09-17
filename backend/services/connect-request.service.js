@@ -1,6 +1,6 @@
 import { ConnectRequest, PURPOSE_LABELS } from '../models/ConnectRequest.js';
 import { Faculty } from '../models/Faculty.js';
-import { emit as emitNotification } from './notification.service.js';
+import { notify } from './notification.service.js';
 import { createLogger } from '../utils/logger.js';
 
 const logger = createLogger('connect-request');
@@ -97,15 +97,17 @@ export async function create({ fromFacultyId, toFacultyId, purpose, message }) {
       .populate({ path: 'fromFacultyId', populate: { path: 'institutionId', select: 'name verificationStatus' } })
       .populate({ path: 'toFacultyId', populate: { path: 'institutionId', select: 'name verificationStatus' } });
 
-    // Fire notification to recipient — non-blocking.
-    emitNotification({
-      facultyId: toFacultyId,
-      type: 'connect_request_received',
-      title: `${populated.fromFacultyId?.name || 'A faculty member'} wants to connect`,
-      body: PURPOSE_LABELS[purpose] || purpose,
-      link: '/requests',
-      metadata: { requestId: doc._id.toString(), purpose },
-    });
+    // Cross-channel notify (in-app + email) — fire-and-forget so a
+    // downed email transport can't block the create call.
+    notify(receiver, 'connect_request_received', {
+      fromName: populated.fromFacultyId?.name || 'A faculty member',
+      fromInstitution: populated.fromFacultyId?.institutionId?.name || '',
+      purpose: PURPOSE_LABELS[purpose] || purpose,
+      message,
+      requestId: doc._id.toString(),
+    }).catch(err =>
+      logger.warn('connect_request_received notify failed', { error: err.message }),
+    );
 
     return serialize(populated, fromFacultyId);
   } catch (error) {
@@ -175,21 +177,15 @@ export async function respond({ requestId, viewerId, decision }) {
     .populate({ path: 'fromFacultyId', populate: { path: 'institutionId', select: 'name verificationStatus' } })
     .populate({ path: 'toFacultyId', populate: { path: 'institutionId', select: 'name verificationStatus' } });
 
-  // Notify the sender of the response — non-blocking.
-  emitNotification({
-    facultyId: populated.fromFacultyId?._id,
-    type: decision === 'accepted' ? 'connect_request_accepted' : 'connect_request_declined',
-    title:
-      decision === 'accepted'
-        ? `${populated.toFacultyId?.name || 'A faculty member'} accepted your connect request`
-        : `${populated.toFacultyId?.name || 'A faculty member'} declined your connect request`,
-    body:
-      decision === 'accepted'
-        ? 'Contact details are now revealed to both of you.'
-        : 'They chose not to connect this time.',
-    link: '/requests',
-    metadata: { requestId: req._id.toString(), decision },
-  });
+  const sender = populated.fromFacultyId;
+  const responderType =
+    decision === 'accepted' ? 'connect_request_accepted' : 'connect_request_declined';
+  notify(sender, responderType, {
+    toName: populated.toFacultyId?.name || 'A faculty member',
+    toInstitution: populated.toFacultyId?.institutionId?.name || '',
+    requestId: req._id.toString(),
+    decision,
+  }).catch(err => logger.warn(`${responderType} notify failed`, { error: err.message }));
 
   return serialize(populated, viewerId);
 }

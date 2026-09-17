@@ -81,7 +81,7 @@ async function smtpTransport({ to, subject, text, html }) {
   return { transport: 'smtp', accepted: info.accepted, messageId: info.messageId };
 }
 
-async function send({ to, subject, text, html }) {
+export async function send({ to, subject, text, html }) {
   const transport = (process.env.EMAIL_TRANSPORT || 'console').toLowerCase();
   try {
     if (transport === 'smtp') return await smtpTransport({ to, subject, text, html });
@@ -97,6 +97,11 @@ async function send({ to, subject, text, html }) {
 }
 
 // -------- Templates --------
+//
+// Approval / rejection / connect-request / application-status emails live
+// in services/notification-templates.js and dispatch via notify() in
+// notification.service.js. Only invitations remain here because the
+// recipient isn't yet a Faculty (no in-app inbox to write to).
 
 export function sendFacultyInvite({ toEmail, toName, invitedByName, institutionName, token }) {
   const url = `${FRONTEND_URL}/onboarding/${encodeURIComponent(token)}`;
@@ -113,36 +118,6 @@ Complete your onboarding here (link valid for 7 days):
 You'll set a password and can optionally connect your ORCID iD to auto-populate your publication history.
 
 If you weren't expecting this invitation, you can safely ignore this email.
-
-— FacultyConnect
-`;
-  return send({ to: toEmail, subject, text });
-}
-
-export function sendApprovalNotification({ toEmail, toName, institutionName }) {
-  const subject = `Your FacultyConnect account is verified at ${institutionName}`;
-  const text = `Hi ${toName || 'there'},
-
-Good news — the admin at ${institutionName} has verified your FacultyConnect account. You now appear as a verified member of ${institutionName} across the platform.
-
-Sign in: ${FRONTEND_URL}/login
-
-— FacultyConnect
-`;
-  return send({ to: toEmail, subject, text });
-}
-
-export function sendRejectionNotification({ toEmail, toName, institutionName, reason }) {
-  const subject = `FacultyConnect: your affiliation with ${institutionName} was not approved`;
-  const text = `Hi ${toName || 'there'},
-
-The admin at ${institutionName} has reviewed your FacultyConnect signup and was unable to verify your affiliation with the institution.
-
-${reason ? `Reason given: ${reason}` : ''}
-
-You can still use FacultyConnect without an institutional affiliation, or contact the college admin directly to resolve this. If you believe this is a mistake, you can update your institution selection in your profile.
-
-Sign in: ${FRONTEND_URL}/login
 
 — FacultyConnect
 `;

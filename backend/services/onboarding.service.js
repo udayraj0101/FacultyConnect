@@ -1,7 +1,7 @@
 import crypto from 'node:crypto';
 import bcrypt from 'bcryptjs';
 import { Faculty } from '../models/Faculty.js';
-import { emit as emitNotification } from './notification.service.js';
+import { notify } from './notification.service.js';
 import { createLogger } from '../utils/logger.js';
 
 const logger = createLogger('onboarding');
@@ -94,16 +94,17 @@ export async function completeOnboarding(compositeToken, { password }) {
   await faculty.save();
   logger.info('onboarding completed', { facultyId: faculty._id.toString() });
 
-  // Notify the college admin who sent the invite (if any).
+  // Notify the college admin who sent the invite (if any). Look up the
+  // inviter so notify() has an email + name to work with even though this
+  // notification type is currently in-app-only.
   if (invitedByFacultyId) {
-    emitNotification({
-      facultyId: invitedByFacultyId,
-      type: 'invitation_accepted',
-      title: `${faculty.name} accepted your invitation`,
-      body: 'They activated their account and are now a verified member of your institution.',
-      link: '/admin/college?section=roster',
-      metadata: { facultyId: faculty._id.toString() },
-    });
+    const inviter = await Faculty.findById(invitedByFacultyId).select('name email');
+    if (inviter) {
+      notify(inviter, 'invitation_accepted', {
+        facultyName: faculty.name,
+        facultyId: faculty._id.toString(),
+      }).catch(err => logger.warn('invitation_accepted notify failed', { error: err.message }));
+    }
   }
 
   return faculty;

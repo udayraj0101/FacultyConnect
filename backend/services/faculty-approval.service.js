@@ -1,9 +1,5 @@
 import { Faculty } from '../models/Faculty.js';
-import {
-  sendApprovalNotification,
-  sendRejectionNotification,
-} from './email.service.js';
-import { emit as emitNotification } from './notification.service.js';
+import { notify } from './notification.service.js';
 import { createLogger } from '../utils/logger.js';
 
 const logger = createLogger('faculty-approval');
@@ -76,22 +72,12 @@ export async function approveFaculty(actorId, facultyId) {
     institutionId: institution._id.toString(),
     by: actorId,
   });
-  // Fire-and-forget — don't block the approval on email delivery.
-  sendApprovalNotification({
-    toEmail: target.email,
-    toName: target.name,
+  // Cross-channel notify: in-app card + email in one call. Fire-and-
+  // forget so a downed email transport can't block the approval flow.
+  notify(target, 'faculty_approved', {
     institutionName: institution.name,
-  }).catch(err => logger.warn('approval email failed', { error: err.message }));
-
-  // In-app notification too (email might land in spam).
-  emitNotification({
-    facultyId: target._id,
-    type: 'faculty_approved',
-    title: `You're verified at ${institution.name}`,
-    body: 'You now appear as a verified faculty member across the platform.',
-    link: '/profile',
-    metadata: { institutionId: institution._id.toString() },
-  });
+    institutionId: institution._id.toString(),
+  }).catch(err => logger.warn('faculty_approved notify failed', { error: err.message }));
 
   return { faculty: serialize(target) };
 }
@@ -120,21 +106,10 @@ export async function rejectFaculty(actorId, facultyId, { reason } = {}) {
     by: actorId,
     reason,
   });
-  sendRejectionNotification({
-    toEmail: target.email,
-    toName: target.name,
+  notify(target, 'faculty_rejected', {
     institutionName,
-    reason,
-  }).catch(err => logger.warn('rejection email failed', { error: err.message }));
-
-  emitNotification({
-    facultyId: target._id,
-    type: 'faculty_rejected',
-    title: `Your affiliation with ${institutionName} was not approved`,
-    body: reason || 'The college admin was unable to verify your affiliation.',
-    link: '/profile',
-    metadata: { institutionName, reason: reason || null },
-  });
+    reason: reason || null,
+  }).catch(err => logger.warn('faculty_rejected notify failed', { error: err.message }));
 
   return { faculty: serialize(target) };
 }
