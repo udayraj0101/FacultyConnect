@@ -65,6 +65,7 @@ const DEADLINE_OPTIONS = [
 
 const SORT_OPTIONS = [
   { value: 'newest', label: 'Newest first' },
+  { value: 'domain_match', label: 'Best domain match' },
   { value: 'deadline_asc', label: 'Deadline (soonest)' },
   { value: 'deadline_desc', label: 'Deadline (latest)' },
 ];
@@ -304,6 +305,17 @@ function OpportunityCard({ opp, typeConfig, bookmarked, onToggleBookmark, onRepo
         <p className="text-sm text-text-muted line-clamp-3 leading-relaxed flex-1">
           {opp.description}
         </p>
+
+        {opp.matchedTags?.length > 0 && (
+          <div className="flex items-center gap-1.5 text-[11px] text-text-muted">
+            <Sparkles size={11} className="text-primary shrink-0" />
+            <span className="font-semibold text-primary">Matched your domains:</span>
+            <span className="truncate">
+              {opp.matchedTags.slice(0, 4).join(', ')}
+              {opp.matchedTags.length > 4 ? ` +${opp.matchedTags.length - 4}` : ''}
+            </span>
+          </div>
+        )}
 
         <CardMetaRow opp={opp} />
 

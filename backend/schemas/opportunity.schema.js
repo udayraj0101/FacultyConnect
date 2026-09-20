@@ -116,7 +116,9 @@ export const listOpportunitiesQuerySchema = z.object({
   // Default to newest-first so freshly-published listings surface
   // immediately on the Discover feed. Faculty can flip to deadline order
   // via the sort dropdown when they're urgency-hunting.
-  sort: z.enum(['newest', 'deadline_asc', 'deadline_desc']).default('newest'),
+  sort: z
+    .enum(['newest', 'deadline_asc', 'deadline_desc', 'domain_match'])
+    .default('newest'),
   page: z.coerce.number().int().min(1).default(1),
   limit: z.coerce.number().int().min(1).max(50).default(20),
   include_expired: z

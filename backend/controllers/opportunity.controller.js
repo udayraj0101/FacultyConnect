@@ -13,7 +13,12 @@ export async function listHandler(req, res) {
     });
   }
   try {
-    const result = await opportunityService.listOpportunities(parsed.data);
+    // req.user is populated only when a valid Bearer was sent (see
+    // optionalAuthenticate). Anonymous callers get the same list without
+    // matched-tag chips and with domain_match falling back to newest.
+    const result = await opportunityService.listOpportunities(parsed.data, {
+      viewerId: req.user?.id || null,
+    });
     return res.status(200).json(result);
   } catch (error) {
     return res.status(error.status || 500).json({

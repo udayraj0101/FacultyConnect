@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { authenticate } from '../middleware/auth.middleware.js';
+import { authenticate, optionalAuthenticate } from '../middleware/auth.middleware.js';
 import { requireRole } from '../middleware/requireRole.js';
 import { validateParams, objectIdParamSchema } from '../middleware/validate.js';
 import {
@@ -14,7 +14,11 @@ import { updateOpportunityVerificationHandler } from '../controllers/verificatio
 
 const router = Router();
 
-router.get('/', listHandler);
+// optionalAuthenticate: list is public, but a logged-in viewer's
+// domainTags let the service compute matched-tag chips and support the
+// 'domain_match' sort. Anonymous callers get the same list minus
+// personalisation.
+router.get('/', optionalAuthenticate, listHandler);
 router.get('/mine/bookmarks', authenticate, listBookmarksHandler);
 router.get(
   '/mine/postings',

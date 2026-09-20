@@ -13,7 +13,21 @@ const SORT_SPECS = {
   deadline_desc: { deadline: -1 },
 };
 
-export async function listOpportunities(filters) {
+function intersectTags(a, b) {
+  if (!a?.length || !b?.length) return [];
+  const setA = new Set(a.map(t => String(t).toLowerCase().trim()).filter(Boolean));
+  const matched = [];
+  const seen = new Set();
+  for (const raw of b) {
+    const key = String(raw).toLowerCase().trim();
+    if (!key || seen.has(key) || !setA.has(key)) continue;
+    seen.add(key);
+    matched.push(raw);
+  }
+  return matched;
+}
+
+export async function listOpportunities(filters, { viewerId } = {}) {
   const {
     type,
     mode,
@@ -89,18 +103,63 @@ export async function listOpportunities(filters) {
 
   if (q) query.$text = { $search: q };
 
-  const sortSpec = SORT_SPECS[sort] || SORT_SPECS.newest;
+  // Resolve viewer tags once — needed for domain-match sort AND for
+  // decorating every response with matchedTags chips, regardless of sort.
+  let viewerTags = [];
+  if (viewerId) {
+    const viewer = await Faculty.findById(viewerId).select('domainTags').lean();
+    viewerTags = viewer?.domainTags || [];
+  }
+  const canDomainMatch = sort === 'domain_match' && viewerTags.length > 0;
 
-  const [total, docs] = await Promise.all([
-    Opportunity.countDocuments(query),
-    Opportunity.find(query)
-      .sort(sortSpec)
-      .skip((page - 1) * limit)
-      .limit(limit),
-  ]);
+  const sortSpec = canDomainMatch
+    ? // Domain-match sort re-ranks in memory after the DB fetch (see
+      // below), so use newest as the tie-break base ordering here.
+      SORT_SPECS.newest
+    : SORT_SPECS[sort] || SORT_SPECS.newest;
+
+  let total;
+  let docs;
+  if (canDomainMatch) {
+    // In-memory rank: fetch a bounded candidate window and sort by
+    // matched-tag count. Safe at seed + early-prod scale (Discover
+    // rarely exceeds a few hundred live listings per type). If the live
+    // corpus grows past ~5k, revisit with an aggregation stage that
+    // computes the intersection server-side.
+    const HARD_CAP = 500;
+    const [count, allDocs] = await Promise.all([
+      Opportunity.countDocuments(query),
+      Opportunity.find(query).sort(sortSpec).limit(HARD_CAP),
+    ]);
+    total = count;
+    const scored = allDocs
+      .map(d => ({ doc: d, matched: intersectTags(viewerTags, d.domainTags) }))
+      .sort((a, b) => {
+        if (b.matched.length !== a.matched.length) {
+          return b.matched.length - a.matched.length;
+        }
+        // Tie-break on createdAt DESC to match the base sort.
+        return new Date(b.doc.createdAt) - new Date(a.doc.createdAt);
+      });
+    docs = scored.slice((page - 1) * limit, page * limit).map(s => s.doc);
+  } else {
+    [total, docs] = await Promise.all([
+      Opportunity.countDocuments(query),
+      Opportunity.find(query)
+        .sort(sortSpec)
+        .skip((page - 1) * limit)
+        .limit(limit),
+    ]);
+  }
 
   return {
-    opportunities: docs.map(d => d.toPublicJSON()),
+    // matchedTags surfaces on every card whenever the viewer has domain
+    // tags — not only under the domain_match sort — so a card can show
+    // "Matched: ML, NLP" even when the user is browsing by deadline.
+    opportunities: docs.map(d => ({
+      ...d.toPublicJSON(),
+      matchedTags: viewerTags.length ? intersectTags(viewerTags, d.domainTags) : [],
+    })),
     page,
     limit,
     total,

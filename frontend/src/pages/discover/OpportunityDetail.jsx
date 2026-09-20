@@ -308,7 +308,7 @@ export default function OpportunityDetail() {
           {opp.location && (
             <InfoRow icon={<MapPin size={15} />} label="Location" value={opp.location} />
           )}
-          {opp.type !== 'journal' && (
+          {opp.type !== 'journal' && opp.type !== 'grant' && (
             <InfoRow
               icon={<IndianRupee size={15} />}
               label="Cost"
