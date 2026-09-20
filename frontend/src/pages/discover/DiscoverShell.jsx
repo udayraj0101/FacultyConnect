@@ -20,6 +20,10 @@ import {
   IndianRupee,
   Bell,
   X,
+  CalendarDays,
+  List,
+  ChevronLeft,
+  ChevronRight,
 } from 'lucide-react';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
@@ -353,6 +357,19 @@ function OpportunityCard({ opp, typeConfig, bookmarked, onToggleBookmark, onRepo
           </div>
         </div>
 
+        {opp.startDate && (
+          <div className="text-[11px] text-text-muted -mt-1">
+            Event{' '}
+            {new Date(opp.startDate).toLocaleDateString(undefined, {
+              day: 'numeric',
+              month: 'short',
+            })}
+            {opp.endDate && opp.endDate !== opp.startDate
+              ? ` – ${new Date(opp.endDate).toLocaleDateString(undefined, { day: 'numeric', month: 'short' })}`
+              : ''}
+          </div>
+        )}
+
         <div className="flex items-center justify-between gap-2 pt-1">
           <span className="text-xs font-semibold text-primary inline-flex items-center gap-1">
             View details →
@@ -380,6 +397,167 @@ function OpportunityCard({ opp, typeConfig, bookmarked, onToggleBookmark, onRepo
  * range, domain) plus an optional `extraFilters` slot for future
  * type-specific filters once the Opportunity model grows.
  */
+// Simple month grid for FDPs / conferences. Renders each Opportunity as
+// a coloured pill in the day cell of its startDate. Multi-day events
+// only appear on the first day to keep the grid readable — the pill
+// itself carries the full date range. Clicking a day filters the panel
+// below to that day's events.
+function MonthCalendarView({ typeConfig, opportunities, monthAnchor, setMonthAnchor }) {
+  const [selectedDay, setSelectedDay] = React.useState(null);
+
+  // First day of the current month (locale midnight — matches what
+  // Date renders for cell labels).
+  const first = new Date(monthAnchor.getFullYear(), monthAnchor.getMonth(), 1);
+  const startWeekday = first.getDay();
+  const daysInMonth = new Date(
+    monthAnchor.getFullYear(),
+    monthAnchor.getMonth() + 1,
+    0,
+  ).getDate();
+
+  // Map YYYY-MM-DD → array of opportunities that START on that day.
+  const byDay = React.useMemo(() => {
+    const map = new Map();
+    for (const opp of opportunities) {
+      if (!opp.startDate) continue;
+      const d = new Date(opp.startDate);
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+      const arr = map.get(key) || [];
+      arr.push(opp);
+      map.set(key, arr);
+    }
+    return map;
+  }, [opportunities]);
+
+  const cells = [];
+  // Leading empty cells so the 1st lines up with the correct weekday.
+  for (let i = 0; i < startWeekday; i += 1) {
+    cells.push(<div key={`pad-${i}`} className="min-h-[70px]" />);
+  }
+  for (let d = 1; d <= daysInMonth; d += 1) {
+    const cellDate = new Date(monthAnchor.getFullYear(), monthAnchor.getMonth(), d);
+    const key = `${cellDate.getFullYear()}-${String(cellDate.getMonth() + 1).padStart(2, '0')}-${String(cellDate.getDate()).padStart(2, '0')}`;
+    const events = byDay.get(key) || [];
+    const isSelected = selectedDay === key;
+    const isToday =
+      cellDate.toDateString() === new Date().toDateString();
+    cells.push(
+      <button
+        key={key}
+        type="button"
+        onClick={() => setSelectedDay(isSelected ? null : key)}
+        className={`min-h-[70px] rounded-md border p-1.5 text-left transition-colors ${
+          isSelected
+            ? 'border-primary bg-primary/5'
+            : events.length > 0
+              ? 'border-primary/30 bg-white hover:border-primary/50'
+              : 'border-border bg-white hover:border-primary/20'
+        }`}
+      >
+        <div
+          className={`text-[11px] font-bold ${
+            isToday ? 'text-primary' : 'text-text-light'
+          }`}
+        >
+          {d}
+        </div>
+        <div className="mt-1 space-y-0.5">
+          {events.slice(0, 2).map(e => (
+            <div
+              key={e.id}
+              className="truncate rounded bg-primary/10 text-primary text-[10px] px-1 py-0.5 font-semibold"
+              title={e.title}
+            >
+              {e.title}
+            </div>
+          ))}
+          {events.length > 2 && (
+            <div className="text-[10px] text-text-muted">
+              +{events.length - 2} more
+            </div>
+          )}
+        </div>
+      </button>,
+    );
+  }
+
+  const monthLabel = monthAnchor.toLocaleDateString(undefined, {
+    month: 'long',
+    year: 'numeric',
+  });
+  const shiftMonth = delta => {
+    setMonthAnchor(prev => new Date(prev.getFullYear(), prev.getMonth() + delta, 1));
+    setSelectedDay(null);
+  };
+
+  const selectedEvents = selectedDay ? byDay.get(selectedDay) || [] : null;
+
+  return (
+    <div className="rounded-xl border border-border bg-white p-4 sm:p-5">
+      <div className="flex items-center justify-between mb-4 gap-3 flex-wrap">
+        <div className="font-bold text-secondary">{monthLabel}</div>
+        <div className="flex items-center gap-1">
+          <button
+            onClick={() => shiftMonth(-1)}
+            className="p-1.5 rounded-md text-text-muted hover:bg-muted hover:text-primary"
+            aria-label="Previous month"
+          >
+            <ChevronLeft size={16} />
+          </button>
+          <button
+            onClick={() => setMonthAnchor(new Date())}
+            className="text-xs font-semibold text-text-muted hover:text-primary px-2 py-1 rounded-md hover:bg-muted"
+          >
+            Today
+          </button>
+          <button
+            onClick={() => shiftMonth(1)}
+            className="p-1.5 rounded-md text-text-muted hover:bg-muted hover:text-primary"
+            aria-label="Next month"
+          >
+            <ChevronRight size={16} />
+          </button>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-7 text-[10px] uppercase tracking-wider text-text-muted font-semibold mb-2">
+        {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(d => (
+          <div key={d} className="px-1 pb-1">
+            {d}
+          </div>
+        ))}
+      </div>
+      <div className="grid grid-cols-7 gap-1">{cells}</div>
+
+      {selectedEvents && selectedEvents.length > 0 && (
+        <div className="mt-5 border-t border-border pt-4">
+          <div className="text-xs font-semibold uppercase tracking-wider text-text-muted mb-2">
+            On this day
+          </div>
+          <div className="space-y-2">
+            {selectedEvents.map(e => (
+              <Link
+                key={e.id}
+                to={`/discover/${typeConfig.slug}/${e.id}`}
+                className="block rounded-md border border-border p-3 hover:border-primary/30 hover:bg-primary/5"
+              >
+                <div className="text-sm font-semibold text-text-light">{e.title}</div>
+                <div className="text-[11px] text-text-muted mt-0.5">
+                  {e.organizerName}
+                  {e.city ? ` · ${e.city}` : ''}
+                  {e.endDate && e.endDate !== e.startDate
+                    ? ` · ${new Date(e.startDate).toLocaleDateString(undefined, { day: 'numeric', month: 'short' })} – ${new Date(e.endDate).toLocaleDateString(undefined, { day: 'numeric', month: 'short' })}`
+                    : ''}
+                </div>
+              </Link>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function DiscoverShell({ typeConfig, extraFilters }) {
   const [filters, setFilters] = useState({
     mode: '',
@@ -397,6 +575,8 @@ export default function DiscoverShell({ typeConfig, extraFilters }) {
     state: '',
     city: '',
     costMax: '',
+    startsAfter: '',
+    startsBefore: '',
   });
   const [pendingQuery, setPendingQuery] = useState('');
   const [pendingDomain, setPendingDomain] = useState('');
@@ -408,6 +588,12 @@ export default function DiscoverShell({ typeConfig, extraFilters }) {
   const [reportTarget, setReportTarget] = useState(null);
   const [filtersOpen, setFiltersOpen] = useState(true);
   const [saveSearchOpen, setSaveSearchOpen] = useState(false);
+  // Only FDPs + conferences have event dates worth calendaring — journals
+  // are rolling submissions and grants are rolling calls. Default to
+  // list mode; the toggle only renders on the two types that benefit.
+  const supportsCalendar = typeConfig.type === 'fdp' || typeConfig.type === 'conference';
+  const [viewMode, setViewMode] = useState('list');
+  const [monthAnchor, setMonthAnchor] = useState(() => new Date());
   const { toast } = useToast();
 
   // Reset filters when the user switches pages (typeConfig changes)
@@ -428,6 +614,8 @@ export default function DiscoverShell({ typeConfig, extraFilters }) {
       state: '',
       city: '',
       costMax: '',
+      startsAfter: '',
+      startsBefore: '',
     });
     setPendingQuery('');
     setPendingDomain('');
@@ -469,7 +657,15 @@ export default function DiscoverShell({ typeConfig, extraFilters }) {
       state: isFdpOrConf && filters.state ? filters.state : undefined,
       city: isFdpOrConf && filters.city ? filters.city : undefined,
       cost_max: isFdpOrConf && filters.costMax !== '' ? filters.costMax : undefined,
+      starts_after:
+        isFdpOrConf && filters.startsAfter ? filters.startsAfter : undefined,
+      starts_before:
+        isFdpOrConf && filters.startsBefore ? filters.startsBefore : undefined,
       include_facets: 'true',
+      // In calendar mode, pull a bigger window so a whole month's worth
+      // of events shows up in a single fetch. Standard list mode keeps
+      // its 20-per-page pagination.
+      limit: viewMode === 'calendar' ? 50 : undefined,
     };
     if (filters.deadlineWithin) {
       const days = Number(filters.deadlineWithin);
@@ -497,7 +693,7 @@ export default function DiscoverShell({ typeConfig, extraFilters }) {
     return () => {
       cancelled = true;
     };
-  }, [filters, typeConfig.type]);
+  }, [filters, typeConfig.type, viewMode]);
 
   const onToggleBookmark = async id => {
     if (savingBookmarks.has(id)) return;
@@ -542,6 +738,8 @@ export default function DiscoverShell({ typeConfig, extraFilters }) {
       state: '',
       city: '',
       costMax: '',
+      startsAfter: '',
+      startsBefore: '',
     });
     setPendingQuery('');
     setPendingDomain('');
@@ -563,6 +761,8 @@ export default function DiscoverShell({ typeConfig, extraFilters }) {
     if (filters.state) n += 1;
     if (filters.city) n += 1;
     if (filters.costMax !== '') n += 1;
+    if (filters.startsAfter) n += 1;
+    if (filters.startsBefore) n += 1;
     return n;
   }, [filters]);
 
@@ -705,6 +905,20 @@ export default function DiscoverShell({ typeConfig, extraFilters }) {
         onRemove: () => setField('costMax', ''),
       });
     }
+    if (filters.startsAfter) {
+      chips.push({
+        key: 'startsAfter',
+        label: `From ${new Date(filters.startsAfter).toLocaleDateString(undefined, { day: 'numeric', month: 'short' })}`,
+        onRemove: () => setField('startsAfter', ''),
+      });
+    }
+    if (filters.startsBefore) {
+      chips.push({
+        key: 'startsBefore',
+        label: `To ${new Date(filters.startsBefore).toLocaleDateString(undefined, { day: 'numeric', month: 'short' })}`,
+        onRemove: () => setField('startsBefore', ''),
+      });
+    }
     return chips;
   }, [filters]);
 
@@ -829,6 +1043,30 @@ export default function DiscoverShell({ typeConfig, extraFilters }) {
         </button>
 
         <div className="flex items-center gap-4 flex-wrap">
+          {supportsCalendar && (
+            <div className="inline-flex items-center rounded-full bg-white border border-border p-0.5 text-xs">
+              <button
+                onClick={() => setViewMode('list')}
+                className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 font-semibold transition-colors ${
+                  viewMode === 'list'
+                    ? 'bg-primary text-white'
+                    : 'text-text-muted hover:text-primary'
+                }`}
+              >
+                <List size={12} /> List
+              </button>
+              <button
+                onClick={() => setViewMode('calendar')}
+                className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 font-semibold transition-colors ${
+                  viewMode === 'calendar'
+                    ? 'bg-primary text-white'
+                    : 'text-text-muted hover:text-primary'
+                }`}
+              >
+                <CalendarDays size={12} /> Calendar
+              </button>
+            </div>
+          )}
           <button
             onClick={() => setSaveSearchOpen(true)}
             className="inline-flex items-center gap-1.5 rounded-full border border-primary/30 bg-primary/5 px-3 py-1.5 text-xs font-semibold text-primary hover:bg-primary/10 transition-colors"
@@ -1014,6 +1252,37 @@ export default function DiscoverShell({ typeConfig, extraFilters }) {
 
               {(typeConfig.type === 'fdp' || typeConfig.type === 'conference') && (
                 <>
+                  <div>
+                    <label className="block text-xs font-semibold uppercase tracking-wide text-text-muted mb-2">
+                      Event dates
+                    </label>
+                    <div className="space-y-2">
+                      <div>
+                        <label className="block text-[10px] text-text-muted mb-1">From</label>
+                        <Input
+                          type="date"
+                          value={filters.startsAfter}
+                          onChange={e =>
+                            setFilters(prev => ({ ...prev, startsAfter: e.target.value }))
+                          }
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] text-text-muted mb-1">To</label>
+                        <Input
+                          type="date"
+                          value={filters.startsBefore}
+                          onChange={e =>
+                            setFilters(prev => ({ ...prev, startsBefore: e.target.value }))
+                          }
+                        />
+                      </div>
+                    </div>
+                    <p className="text-[10px] text-text-muted mt-1">
+                      Matches events that start inside this window — useful for
+                      "what's on during my break".
+                    </p>
+                  </div>
                   <div>
                     <label className="block text-xs font-semibold uppercase tracking-wide text-text-muted mb-2">
                       State
@@ -1260,23 +1529,32 @@ export default function DiscoverShell({ typeConfig, extraFilters }) {
             />
           )}
 
-          <div
-            className={`grid gap-4 ${
-              filtersOpen ? 'grid-cols-1 xl:grid-cols-2' : 'grid-cols-1 md:grid-cols-2 xl:grid-cols-3'
-            }`}
-          >
-            {data.opportunities.map((opp, i) => (
-              <OpportunityCard
-                key={opp.id}
-                opp={opp}
-                typeConfig={typeConfig}
-                index={i}
-                bookmarked={bookmarkedIds.has(opp.id)}
-                onToggleBookmark={onToggleBookmark}
-                onReport={setReportTarget}
-              />
-            ))}
-          </div>
+          {viewMode === 'calendar' && supportsCalendar ? (
+            <MonthCalendarView
+              typeConfig={typeConfig}
+              opportunities={data.opportunities}
+              monthAnchor={monthAnchor}
+              setMonthAnchor={setMonthAnchor}
+            />
+          ) : (
+            <div
+              className={`grid gap-4 ${
+                filtersOpen ? 'grid-cols-1 xl:grid-cols-2' : 'grid-cols-1 md:grid-cols-2 xl:grid-cols-3'
+              }`}
+            >
+              {data.opportunities.map((opp, i) => (
+                <OpportunityCard
+                  key={opp.id}
+                  opp={opp}
+                  typeConfig={typeConfig}
+                  index={i}
+                  bookmarked={bookmarkedIds.has(opp.id)}
+                  onToggleBookmark={onToggleBookmark}
+                  onReport={setReportTarget}
+                />
+              ))}
+            </div>
+          )}
         </section>
       </div>
 

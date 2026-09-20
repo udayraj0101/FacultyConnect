@@ -1,4 +1,5 @@
 import * as opportunityService from '../services/opportunity.service.js';
+import { buildEventIcs } from '../services/ical.service.js';
 import {
   listOpportunitiesQuerySchema,
   createOpportunitySchema,
@@ -34,6 +35,38 @@ export async function detailHandler(req, res) {
   } catch (error) {
     return res.status(error.status || 500).json({
       error: { code: error.code || 'DETAIL_FAILED', message: error.message },
+    });
+  }
+}
+
+/**
+ * Render one opportunity as an .ics (iCalendar) file. Public — no auth
+ * required so a bookmarked ics URL keeps working when a user is signed
+ * out. Cache-friendly (5 min) since the calendar clients that fetch
+ * these tolerate short staleness far better than a hot-refresh pattern.
+ */
+export async function icalHandler(req, res) {
+  try {
+    const opp = await opportunityService.getOpportunityById(req.params.id);
+    const host = req.get('host') || 'facultyconnect.in';
+    const ics = buildEventIcs(opp, { host });
+    res.set('Content-Type', 'text/calendar; charset=utf-8');
+    res.set('Cache-Control', 'public, max-age=300');
+    // Downloadable filename slugged from the opportunity title so users
+    // browsing their Downloads folder later can tell events apart.
+    const slug = String(opp.title || 'event')
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '')
+      .slice(0, 60);
+    res.set(
+      'Content-Disposition',
+      `attachment; filename="facultyconnect-${slug || 'event'}.ics"`,
+    );
+    return res.status(200).send(ics);
+  } catch (error) {
+    return res.status(error.status || 500).json({
+      error: { code: error.code || 'ICAL_FAILED', message: error.message },
     });
   }
 }

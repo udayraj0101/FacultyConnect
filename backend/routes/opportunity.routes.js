@@ -5,6 +5,7 @@ import { validateParams, objectIdParamSchema } from '../middleware/validate.js';
 import {
   listHandler,
   detailHandler,
+  icalHandler,
   bookmarkHandler,
   listBookmarksHandler,
   createHandler,
@@ -33,6 +34,7 @@ router.post(
   createHandler,
 );
 router.get('/:id', validateParams(objectIdParamSchema), detailHandler);
+router.get('/:id/ical', validateParams(objectIdParamSchema), icalHandler);
 router.post(
   '/:id/bookmark',
   authenticate,

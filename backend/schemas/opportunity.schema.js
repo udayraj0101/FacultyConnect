@@ -119,6 +119,8 @@ export const createOpportunitySchema = z
     eligibleRoles: z.array(z.enum(GRANT_ROLES)).max(GRANT_ROLES.length).default([]),
     state: z.enum(INDIAN_STATES).nullable().optional(),
     city: z.string().trim().max(120).nullable().optional(),
+    startDate: z.coerce.date().nullable().optional(),
+    endDate: z.coerce.date().nullable().optional(),
   })
   .strict();
 
@@ -155,6 +157,10 @@ export const listOpportunitiesQuerySchema = z.object({
   state: csvList(INDIAN_STATES),
   city: z.string().trim().max(120).optional(),
   cost_max: z.coerce.number().int().min(0).max(10_000_000).optional(),
+  // Event date-range filter — matches events that START inside the
+  // window [starts_after, starts_before]. Either bound is optional.
+  starts_after: z.coerce.date().optional(),
+  starts_before: z.coerce.date().optional(),
   deadline_before: z.coerce.date().optional(),
   q: z.string().trim().max(120).optional(),
   // Default to newest-first so freshly-published listings surface

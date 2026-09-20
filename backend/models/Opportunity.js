@@ -119,6 +119,12 @@ const opportunitySchema = new mongoose.Schema(
     // discover; city is case-insensitive substring match.
     state: { type: String, enum: INDIAN_STATES, default: null, index: true },
     city: { type: String, default: null, trim: true, maxlength: 120 },
+    // Event dates for FDPs + conferences. Distinct from `deadline`
+    // (submission cutoff). Nullable — journals and rolling-call grants
+    // don't have a discrete event window. Indexed so date-range filters
+    // stay cheap as the corpus grows.
+    startDate: { type: Date, default: null, index: true },
+    endDate: { type: Date, default: null, index: true },
     cost: { type: Number, default: 0, min: 0 },
     deadline: { type: Date, required: true, index: true },
     url: { type: String, default: null },
@@ -181,6 +187,8 @@ opportunitySchema.methods.toPublicJSON = function toPublicJSON() {
     location: this.location,
     state: this.state || null,
     city: this.city || null,
+    startDate: this.startDate,
+    endDate: this.endDate,
     cost: this.cost,
     deadline: this.deadline,
     url: this.url,

@@ -38,6 +38,8 @@ const SEED = [
     city: 'Tiruchirappalli',
     cost: 3500,
     deadline: daysFromNow(35),
+    startDate: daysFromNow(45),
+    endDate: daysFromNow(49),
     verificationBadge: 'unverified',
     creditHours: 30,
     certificateProvided: true,
@@ -55,6 +57,8 @@ const SEED = [
     city: 'Chennai',
     cost: 1500,
     deadline: daysFromNow(28),
+    startDate: daysFromNow(35),
+    endDate: daysFromNow(36),
     verificationBadge: 'unverified',
     creditHours: 16,
     certificateProvided: false,
@@ -72,6 +76,8 @@ const SEED = [
     city: 'Bengaluru',
     cost: 8500,
     deadline: daysFromNow(60),
+    startDate: daysFromNow(90),
+    endDate: daysFromNow(92),
     url: 'https://indicon.ieeeindia.org/',
     verificationBadge: 'scopus_indexed',
     creditHours: 24,
@@ -90,6 +96,8 @@ const SEED = [
     city: 'New Delhi',
     cost: 4000,
     deadline: daysFromNow(45),
+    startDate: daysFromNow(75),
+    endDate: daysFromNow(77),
     verificationBadge: 'unverified',
     creditHours: 16,
     certificateProvided: true,
@@ -265,6 +273,8 @@ async function run() {
     if (Array.isArray(doc.eligibleRoles)) set.eligibleRoles = doc.eligibleRoles;
     if (doc.state) set.state = doc.state;
     if (doc.city) set.city = doc.city;
+    if (doc.startDate) set.startDate = doc.startDate;
+    if (doc.endDate) set.endDate = doc.endDate;
     // Don't $setOnInsert and $set the same keys — Mongo rejects conflicts.
     for (const key of Object.keys(set)) delete setOnInsert[key];
 

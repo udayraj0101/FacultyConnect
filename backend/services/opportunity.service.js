@@ -43,6 +43,8 @@ export async function listOpportunities(filters, { viewerId } = {}) {
     state,
     city,
     cost_max: costMax,
+    starts_after: startsAfter,
+    starts_before: startsBefore,
     deadline_before: deadlineBefore,
     q,
     sort,
@@ -74,6 +76,17 @@ export async function listOpportunities(filters, { viewerId } = {}) {
   if (state?.length) query.state = { $in: state };
   if (city) {
     query.city = new RegExp(escapeRegex(city), 'i');
+  }
+
+  // Event date-range: match events whose startDate falls in the window.
+  // Only listings with a startDate set match — journals + rolling-call
+  // grants get filtered out, which is intended for "events in my break"
+  // discovery.
+  if (startsAfter || startsBefore) {
+    const range = {};
+    if (startsAfter) range.$gte = startsAfter;
+    if (startsBefore) range.$lte = startsBefore;
+    query.startDate = range;
   }
 
   if (domain?.length) {

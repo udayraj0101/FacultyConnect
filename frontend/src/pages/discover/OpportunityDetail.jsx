@@ -23,6 +23,8 @@ import {
   Landmark,
   Users,
   Handshake,
+  CalendarDays,
+  Download,
 } from 'lucide-react';
 import {
   INDEXING_META,
@@ -207,6 +209,19 @@ export default function OpportunityDetail() {
           <ArrowLeft size={14} /> Back to {typeConfig.label}
         </Link>
         <div className="flex items-center gap-2">
+          {(opp.startDate || opp.deadline) && (
+            <a
+              href={`/v1/opportunities/${opp.id}/ical`}
+              // download attr hints the browser to save rather than
+              // navigate. The backend's Content-Disposition header sets
+              // a friendly filename regardless.
+              download
+              className="inline-flex items-center gap-1.5 rounded-full border border-border bg-white px-3 py-1.5 text-xs font-semibold text-text-light hover:text-primary hover:border-primary/40"
+              title="Download .ics — imports into Google / Outlook / Apple Calendar"
+            >
+              <CalendarDays size={13} /> Add to calendar
+            </a>
+          )}
           <button
             onClick={() => setReportOpen(true)}
             className="inline-flex items-center gap-1.5 rounded-full border border-border bg-white px-3 py-1.5 text-xs font-semibold text-text-muted hover:text-danger hover:border-danger/30"
@@ -331,6 +346,17 @@ export default function OpportunityDetail() {
             label="Deadline"
             value={`${formatDate(opp.deadline)} · ${deadlineLabel}`}
           />
+          {opp.startDate && (
+            <InfoRow
+              icon={<CalendarDays size={15} />}
+              label="Event dates"
+              value={
+                opp.endDate && opp.endDate !== opp.startDate
+                  ? `${formatDate(opp.startDate)} – ${formatDate(opp.endDate)}`
+                  : formatDate(opp.startDate)
+              }
+            />
+          )}
           {opp.issn && (
             <InfoRow icon={<Hash size={15} />} label="ISSN" value={opp.issn} />
           )}
