@@ -20,6 +20,12 @@ export async function listOpportunities(filters) {
     cost,
     domain,
     indexing,
+    credit_hours_min: creditHoursMin,
+    certificate,
+    agency,
+    amount_min: amountMin,
+    amount_max: amountMax,
+    career_stage: careerStage,
     deadline_before: deadlineBefore,
     q,
     sort,
@@ -45,6 +51,33 @@ export async function listOpportunities(filters) {
   // AND them, and ANDing would surprise the user (they picked either).
   if (indexing?.length) {
     query.indexing = { $in: indexing };
+  }
+
+  // FDP + conference: minimum credit hours the listing must offer.
+  if (Number.isFinite(creditHoursMin) && creditHoursMin > 0) {
+    query.creditHours = { $gte: creditHoursMin };
+  }
+  if (certificate === 'true') {
+    query.certificateProvided = true;
+  } else if (certificate === 'false') {
+    query.certificateProvided = false;
+  }
+
+  // Grants: any-match on agency + any-match on career stage + ceiling-
+  // capped amount. amount_max = "grant ceiling ≤ user's cap" — matches
+  // the UI label "Up to Rs. 50 L" as "give me small grants" rather than
+  // "give me anything overlapping this range". Grants with no amountMax
+  // set are excluded when the user narrows by amount, since an unbounded
+  // grant could be any size.
+  if (agency?.length) query.agency = { $in: agency };
+  if (careerStage?.length) query.careerStage = { $in: careerStage };
+  if (Number.isFinite(amountMax)) {
+    query.amountMax = { $ne: null, $lte: amountMax };
+  }
+  if (Number.isFinite(amountMin)) {
+    // Optional floor filter for completeness — grants whose ceiling is
+    // at least this much (i.e. the grant could award at least amountMin).
+    query.amountMax = { ...(query.amountMax || {}), $gte: amountMin };
   }
 
   const now = new Date();

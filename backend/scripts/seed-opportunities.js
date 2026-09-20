@@ -22,6 +22,8 @@ const SEED = [
     deadline: daysFromNow(21),
     url: 'https://atalacademy.aicte-india.org/',
     verificationBadge: 'unverified',
+    creditHours: 40,
+    certificateProvided: true,
   },
   {
     type: 'fdp',
@@ -35,6 +37,23 @@ const SEED = [
     cost: 3500,
     deadline: daysFromNow(35),
     verificationBadge: 'unverified',
+    creditHours: 30,
+    certificateProvided: true,
+  },
+  {
+    type: 'fdp',
+    title: 'Two-day workshop: Outcome-Based Education for NAAC/NBA Accreditation',
+    description:
+      'Concentrated workshop on framing course outcomes, PO-CO mapping, attainment computation, and preparing self-study reports for NBA / NAAC visits. Aimed at Assistant + Associate Professors handling academic-audit responsibilities.',
+    domainTags: ['Higher Education', 'Academic Administration'],
+    organizerName: 'Anna University',
+    mode: 'offline',
+    location: 'Chennai, Tamil Nadu',
+    cost: 1500,
+    deadline: daysFromNow(28),
+    verificationBadge: 'unverified',
+    creditHours: 16,
+    certificateProvided: false,
   },
   {
     type: 'conference',
@@ -49,6 +68,8 @@ const SEED = [
     deadline: daysFromNow(60),
     url: 'https://indicon.ieeeindia.org/',
     verificationBadge: 'scopus_indexed',
+    creditHours: 24,
+    certificateProvided: true,
   },
   {
     type: 'conference',
@@ -62,6 +83,8 @@ const SEED = [
     cost: 4000,
     deadline: daysFromNow(45),
     verificationBadge: 'unverified',
+    creditHours: 16,
+    certificateProvided: true,
   },
   {
     type: 'grant',
@@ -75,6 +98,11 @@ const SEED = [
     deadline: daysFromNow(90),
     url: 'https://anrfonline.serbonline.in/',
     verificationBadge: 'unverified',
+    agency: 'serb',
+    amountMin: 500000,
+    amountMax: 5000000,
+    careerStage: ['mid_career', 'senior'],
+    eligibleRoles: ['pi'],
   },
   {
     type: 'grant',
@@ -87,6 +115,45 @@ const SEED = [
     cost: 0,
     deadline: daysFromNow(75),
     verificationBadge: 'unverified',
+    agency: 'icssr',
+    amountMin: 1000000,
+    amountMax: 3000000,
+    careerStage: ['mid_career', 'senior'],
+    eligibleRoles: ['pi', 'co_pi'],
+  },
+  {
+    type: 'grant',
+    title: 'SERB-POWER Fellowship for Women in Science and Engineering',
+    description:
+      'Fellowship track under the Promoting Opportunities For Women in Exploratory Research programme. Aimed at early- and mid-career women scientists to lead independent research projects.',
+    domainTags: ['Sciences', 'Engineering', 'Women in STEM'],
+    organizerName: 'SERB / DST',
+    mode: 'online',
+    cost: 0,
+    deadline: daysFromNow(50),
+    verificationBadge: 'unverified',
+    agency: 'serb',
+    amountMin: 3000000,
+    amountMax: 6000000,
+    careerStage: ['early_career', 'mid_career'],
+    eligibleRoles: ['pi'],
+  },
+  {
+    type: 'grant',
+    title: 'DBT Ramalingaswami Re-entry Fellowship 2026',
+    description:
+      'Fellowship enabling Indian nationals working abroad to return to India for research careers in biotechnology and allied life sciences. Rolling call, cycle deadlines twice a year.',
+    domainTags: ['Biotechnology', 'Life Sciences'],
+    organizerName: 'Department of Biotechnology, Government of India',
+    mode: 'online',
+    cost: 0,
+    deadline: daysFromNow(120),
+    verificationBadge: 'unverified',
+    agency: 'dbt',
+    amountMin: 2500000,
+    amountMax: 8000000,
+    careerStage: ['early_career'],
+    eligibleRoles: ['pi'],
   },
   {
     type: 'journal',
@@ -179,6 +246,15 @@ async function run() {
       set.predatoryScreened = doc.predatoryScreened;
     }
     if (doc.apc) set.apc = doc.apc;
+    if (doc.creditHours != null) set.creditHours = doc.creditHours;
+    if (typeof doc.certificateProvided === 'boolean') {
+      set.certificateProvided = doc.certificateProvided;
+    }
+    if (doc.agency) set.agency = doc.agency;
+    if (doc.amountMin != null) set.amountMin = doc.amountMin;
+    if (doc.amountMax != null) set.amountMax = doc.amountMax;
+    if (Array.isArray(doc.careerStage)) set.careerStage = doc.careerStage;
+    if (Array.isArray(doc.eligibleRoles)) set.eligibleRoles = doc.eligibleRoles;
     // Don't $setOnInsert and $set the same keys — Mongo rejects conflicts.
     for (const key of Object.keys(set)) delete setOnInsert[key];
 

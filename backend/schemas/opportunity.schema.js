@@ -13,6 +13,22 @@ const INDEXING = [
   'pubmed',
 ];
 const OA_TYPES = ['gold', 'green', 'diamond', 'hybrid', 'none'];
+const GRANT_AGENCIES = [
+  'dst',
+  'serb',
+  'anrf',
+  'dbt',
+  'icssr',
+  'aicte',
+  'meity',
+  'csir',
+  'ugc',
+  'industry',
+  'international',
+  'other',
+];
+const CAREER_STAGES = ['early_career', 'mid_career', 'senior', 'any'];
+const GRANT_ROLES = ['pi', 'co_pi', 'investigator'];
 
 const apcSchema = z
   .object({
@@ -56,6 +72,13 @@ export const createOpportunitySchema = z
     indexing: z.array(z.enum(INDEXING)).max(INDEXING.length).default([]),
     predatoryScreened: z.boolean().default(false),
     apc: apcSchema,
+    creditHours: z.coerce.number().int().min(0).max(500).nullable().optional(),
+    certificateProvided: z.boolean().optional(),
+    agency: z.enum(GRANT_AGENCIES).nullable().optional(),
+    amountMin: z.coerce.number().min(0).max(10_000_000_000).nullable().optional(),
+    amountMax: z.coerce.number().min(0).max(10_000_000_000).nullable().optional(),
+    careerStage: z.array(z.enum(CAREER_STAGES)).max(CAREER_STAGES.length).default([]),
+    eligibleRoles: z.array(z.enum(GRANT_ROLES)).max(GRANT_ROLES.length).default([]),
   })
   .strict();
 
@@ -78,6 +101,16 @@ export const listOpportunitiesQuerySchema = z.object({
     .optional()
     .transform(v => (v ? v.split(',').map(s => s.trim()).filter(Boolean) : undefined)),
   indexing: csvList(INDEXING),
+  // FDP + conference filters.
+  credit_hours_min: z.coerce.number().int().min(0).max(500).optional(),
+  certificate: z.enum(['true', 'false']).optional(),
+  // Grant filters. amount_min/max are inclusive INR bounds. career_stage
+  // accepts CSV of the enum values. agency is a single value for now (we
+  // can promote to CSV later if the demand shows up).
+  agency: csvList(GRANT_AGENCIES),
+  amount_min: z.coerce.number().min(0).max(10_000_000_000).optional(),
+  amount_max: z.coerce.number().min(0).max(10_000_000_000).optional(),
+  career_stage: csvList(CAREER_STAGES),
   deadline_before: z.coerce.date().optional(),
   q: z.string().trim().max(120).optional(),
   // Default to newest-first so freshly-published listings surface

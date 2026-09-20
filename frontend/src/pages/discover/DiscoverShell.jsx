@@ -14,6 +14,10 @@ import {
   Flag,
   SlidersHorizontal,
   ChevronDown,
+  Clock,
+  Award,
+  Landmark,
+  IndianRupee,
 } from 'lucide-react';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
@@ -30,6 +34,14 @@ import {
   INDEXING_ORDER,
   indexingChipClass,
 } from '../../lib/opportunityIndexing';
+import {
+  AGENCY_META,
+  AGENCY_ORDER,
+  CAREER_STAGE_META,
+  CAREER_STAGE_ORDER,
+  AMOUNT_PRESETS,
+  formatAmountRange,
+} from '../../lib/opportunityGrants';
 
 const MODE_OPTIONS = [
   { value: '', label: 'Any' },
@@ -96,6 +108,93 @@ function TrustMarker({ opp }) {
         <ShieldCheck size={10} /> Not predatory
       </span>
     );
+  }
+  return null;
+}
+
+// Small pill used to surface Wave 3 filter-relevant fields (credit hours,
+// certificate, agency, amount). Neutral styling so it doesn't compete
+// with the coloured indexing chips on journal cards.
+function MetaChip({ icon, label, tone = 'neutral', title }) {
+  const toneClass =
+    tone === 'success'
+      ? 'bg-success/10 text-success border-success/30'
+      : 'bg-muted text-text-light border-border';
+  return (
+    <span
+      title={title}
+      className={`inline-flex items-center gap-1 rounded-full ${toneClass} border px-2 py-0.5 text-[10px] font-semibold`}
+    >
+      {icon}
+      {label}
+    </span>
+  );
+}
+
+// Small horizontal row of type-specific meta chips shown under the
+// description on a card. Reads type off the opportunity so one function
+// serves fdp / conference / grant.
+function CardMetaRow({ opp }) {
+  if (opp.type === 'fdp' || opp.type === 'conference') {
+    const chips = [];
+    if (opp.creditHours != null && opp.creditHours > 0) {
+      chips.push(
+        <MetaChip
+          key="credit"
+          icon={<Clock size={10} />}
+          label={`${opp.creditHours} CPD hours`}
+          title="AICTE / CPD credit hours awarded"
+        />,
+      );
+    }
+    if (opp.certificateProvided) {
+      chips.push(
+        <MetaChip
+          key="cert"
+          icon={<Award size={10} />}
+          label="Certificate"
+          tone="success"
+          title="Certificate of participation provided"
+        />,
+      );
+    }
+    return chips.length ? <div className="flex items-center gap-1 flex-wrap">{chips}</div> : null;
+  }
+  if (opp.type === 'grant') {
+    const chips = [];
+    if (opp.agency && AGENCY_META[opp.agency]) {
+      chips.push(
+        <MetaChip
+          key="agency"
+          icon={<Landmark size={10} />}
+          label={AGENCY_META[opp.agency].short}
+          title={AGENCY_META[opp.agency].long}
+        />,
+      );
+    }
+    const range = formatAmountRange(opp.amountMin, opp.amountMax);
+    if (range) {
+      chips.push(
+        <MetaChip
+          key="amount"
+          icon={<IndianRupee size={10} />}
+          label={range}
+          title="Grant amount range"
+        />,
+      );
+    }
+    for (const stage of opp.careerStage || []) {
+      if (!CAREER_STAGE_META[stage]) continue;
+      chips.push(
+        <MetaChip
+          key={`stage-${stage}`}
+          icon={<BadgeCheck size={10} />}
+          label={CAREER_STAGE_META[stage].short}
+          title={CAREER_STAGE_META[stage].long}
+        />,
+      );
+    }
+    return chips.length ? <div className="flex items-center gap-1 flex-wrap">{chips}</div> : null;
   }
   return null;
 }
@@ -206,6 +305,8 @@ function OpportunityCard({ opp, typeConfig, bookmarked, onToggleBookmark, onRepo
           {opp.description}
         </p>
 
+        <CardMetaRow opp={opp} />
+
         <div className="flex items-center justify-between mt-1 gap-4 flex-wrap">
           <div className="text-xs text-text-muted flex items-center gap-3 flex-wrap">
             <span className="inline-flex items-center gap-1">
@@ -267,6 +368,11 @@ export default function DiscoverShell({ typeConfig, extraFilters }) {
     deadlineWithin: '',
     sort: 'newest',
     indexing: [],
+    creditHoursMin: '',
+    certificate: '',
+    agency: [],
+    amountMax: '',
+    careerStage: [],
   });
   const [pendingQuery, setPendingQuery] = useState('');
   const [pendingDomain, setPendingDomain] = useState('');
@@ -280,7 +386,20 @@ export default function DiscoverShell({ typeConfig, extraFilters }) {
 
   // Reset filters when the user switches pages (typeConfig changes)
   useEffect(() => {
-    setFilters({ mode: '', cost: '', q: '', domain: '', deadlineWithin: '', sort: 'newest', indexing: [] });
+    setFilters({
+      mode: '',
+      cost: '',
+      q: '',
+      domain: '',
+      deadlineWithin: '',
+      sort: 'newest',
+      indexing: [],
+      creditHoursMin: '',
+      certificate: '',
+      agency: [],
+      amountMax: '',
+      careerStage: [],
+    });
     setPendingQuery('');
     setPendingDomain('');
   }, [typeConfig.type]);
@@ -303,6 +422,8 @@ export default function DiscoverShell({ typeConfig, extraFilters }) {
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
+    const isFdpOrConf = typeConfig.type === 'fdp' || typeConfig.type === 'conference';
+    const isGrant = typeConfig.type === 'grant';
     const query = {
       type: [typeConfig.type],
       mode: filters.mode,
@@ -311,6 +432,11 @@ export default function DiscoverShell({ typeConfig, extraFilters }) {
       domain: filters.domain ? [filters.domain] : [],
       sort: filters.sort,
       indexing: typeConfig.type === 'journal' ? filters.indexing : [],
+      credit_hours_min: isFdpOrConf && filters.creditHoursMin ? filters.creditHoursMin : undefined,
+      certificate: isFdpOrConf && filters.certificate ? filters.certificate : undefined,
+      agency: isGrant ? filters.agency : [],
+      amount_max: isGrant && filters.amountMax ? filters.amountMax : undefined,
+      career_stage: isGrant ? filters.careerStage : [],
     };
     if (filters.deadlineWithin) {
       const days = Number(filters.deadlineWithin);
@@ -361,7 +487,20 @@ export default function DiscoverShell({ typeConfig, extraFilters }) {
   };
 
   const clearFilters = () => {
-    setFilters({ mode: '', cost: '', q: '', domain: '', deadlineWithin: '', sort: 'newest', indexing: [] });
+    setFilters({
+      mode: '',
+      cost: '',
+      q: '',
+      domain: '',
+      deadlineWithin: '',
+      sort: 'newest',
+      indexing: [],
+      creditHoursMin: '',
+      certificate: '',
+      agency: [],
+      amountMax: '',
+      careerStage: [],
+    });
     setPendingQuery('');
     setPendingDomain('');
   };
@@ -374,6 +513,11 @@ export default function DiscoverShell({ typeConfig, extraFilters }) {
     if (filters.domain) n += 1;
     if (filters.deadlineWithin) n += 1;
     if (filters.indexing?.length) n += filters.indexing.length;
+    if (filters.creditHoursMin) n += 1;
+    if (filters.certificate) n += 1;
+    if (filters.agency?.length) n += filters.agency.length;
+    if (filters.amountMax) n += 1;
+    if (filters.careerStage?.length) n += filters.careerStage.length;
     return n;
   }, [filters]);
 
@@ -384,6 +528,16 @@ export default function DiscoverShell({ typeConfig, extraFilters }) {
         ? current.filter(k => k !== key)
         : [...current, key];
       return { ...prev, indexing: next };
+    });
+  };
+
+  const toggleArrayFilter = (field, key) => {
+    setFilters(prev => {
+      const current = prev[field] || [];
+      const next = current.includes(key)
+        ? current.filter(k => k !== key)
+        : [...current, key];
+      return { ...prev, [field]: next };
     });
   };
 
@@ -609,6 +763,134 @@ export default function DiscoverShell({ typeConfig, extraFilters }) {
                     })}
                   </div>
                 </div>
+              )}
+
+              {(typeConfig.type === 'fdp' || typeConfig.type === 'conference') && (
+                <>
+                  <div>
+                    <label className="block text-xs font-semibold uppercase tracking-wide text-text-muted mb-2">
+                      Minimum credit hours
+                    </label>
+                    <div className="flex gap-2 items-center">
+                      <Input
+                        type="number"
+                        min="0"
+                        max="500"
+                        placeholder="e.g. 20"
+                        value={filters.creditHoursMin}
+                        onChange={e =>
+                          setFilters(prev => ({ ...prev, creditHoursMin: e.target.value }))
+                        }
+                      />
+                    </div>
+                    <p className="text-[10px] text-text-muted mt-1">
+                      AICTE / CPD hours the listing must offer.
+                    </p>
+                  </div>
+                  <div>
+                    <div className="text-xs font-semibold uppercase tracking-wide text-text-muted mb-2">
+                      Certificate
+                    </div>
+                    <div className="space-y-1">
+                      {[
+                        { value: '', label: 'Any' },
+                        { value: 'true', label: 'Certificate provided' },
+                      ].map(opt => (
+                        <label
+                          key={opt.value || 'any-cert'}
+                          className="flex items-center gap-2 text-sm cursor-pointer py-0.5"
+                        >
+                          <input
+                            type="radio"
+                            name="certificate"
+                            checked={filters.certificate === opt.value}
+                            onChange={() =>
+                              setFilters(prev => ({ ...prev, certificate: opt.value }))
+                            }
+                            className="accent-primary"
+                          />
+                          {opt.label}
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                </>
+              )}
+
+              {typeConfig.type === 'grant' && (
+                <>
+                  <div>
+                    <div className="text-xs font-semibold uppercase tracking-wide text-text-muted mb-2">
+                      Agency
+                    </div>
+                    <div className="space-y-1 max-h-56 overflow-y-auto pr-1">
+                      {AGENCY_ORDER.map(key => {
+                        const checked = filters.agency.includes(key);
+                        return (
+                          <label
+                            key={key}
+                            className="flex items-center gap-2 text-sm cursor-pointer py-0.5"
+                            title={AGENCY_META[key].long}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={checked}
+                              onChange={() => toggleArrayFilter('agency', key)}
+                              className="accent-primary"
+                            />
+                            {AGENCY_META[key].long}
+                          </label>
+                        );
+                      })}
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold uppercase tracking-wide text-text-muted mb-2">
+                      Amount range
+                    </label>
+                    <select
+                      value={filters.amountMax}
+                      onChange={e =>
+                        setFilters(prev => ({ ...prev, amountMax: e.target.value }))
+                      }
+                      className="w-full h-10 rounded-md border border-border bg-white px-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                    >
+                      {AMOUNT_PRESETS.map(o => (
+                        <option key={o.value || 'any-amount'} value={o.value}>
+                          {o.label}
+                        </option>
+                      ))}
+                    </select>
+                    <p className="text-[10px] text-text-muted mt-1">
+                      Grants whose upper-bound is at most this value.
+                    </p>
+                  </div>
+                  <div>
+                    <div className="text-xs font-semibold uppercase tracking-wide text-text-muted mb-2">
+                      Career stage
+                    </div>
+                    <div className="space-y-1">
+                      {CAREER_STAGE_ORDER.map(key => {
+                        const checked = filters.careerStage.includes(key);
+                        return (
+                          <label
+                            key={key}
+                            className="flex items-center gap-2 text-sm cursor-pointer py-0.5"
+                            title={CAREER_STAGE_META[key].long}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={checked}
+                              onChange={() => toggleArrayFilter('careerStage', key)}
+                              className="accent-primary"
+                            />
+                            {CAREER_STAGE_META[key].long}
+                          </label>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </>
               )}
 
               {extraFilters && <div>{extraFilters}</div>}

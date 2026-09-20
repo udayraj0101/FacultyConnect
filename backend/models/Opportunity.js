@@ -25,6 +25,32 @@ const INDEXING = [
 // Hybrid = subscription journal with optional per-article OA.
 const OA_TYPES = ['gold', 'green', 'diamond', 'hybrid', 'none'];
 
+// Indian funding agencies faculty regularly apply to, plus catch-alls.
+// Grant-type opportunities primarily use this. Adding a new agency is
+// a schema change (index + enum) so keep the catch-all buckets around.
+const GRANT_AGENCIES = [
+  'dst',
+  'serb',
+  'anrf',
+  'dbt',
+  'icssr',
+  'aicte',
+  'meity',
+  'csir',
+  'ugc',
+  'industry',
+  'international',
+  'other',
+];
+
+// Career stage the grant is aimed at. `any` means the grant is open to
+// all faculty and the filter shouldn't narrow it out.
+const CAREER_STAGES = ['early_career', 'mid_career', 'senior', 'any'];
+
+// Roles the applicant can hold on a grant. Mirrors Faculty.grantsReceived
+// role enum so future co-PI matching can compare like-for-like.
+const GRANT_ROLES = ['pi', 'co_pi', 'investigator'];
+
 const apcSchema = new mongoose.Schema(
   {
     amount: { type: Number, default: null, min: 0 },
@@ -65,6 +91,28 @@ const opportunitySchema = new mongoose.Schema(
     predatoryScreened: { type: Boolean, default: false, index: true },
     // Journal-type only: what the author pays and under what OA model.
     apc: { type: apcSchema, default: () => ({ oaType: 'none', waiverAvailable: false }) },
+    // FDP + conference filters. AICTE / CPD credit hours are the primary
+    // reason faculty attend, and "certificate provided" is a hard filter
+    // for CAS documentation. Left null on non-FDP/conference docs so the
+    // UI can distinguish "unset" from "explicitly zero credit hours".
+    creditHours: { type: Number, default: null, min: 0, max: 500 },
+    certificateProvided: { type: Boolean, default: false },
+    // Grant-type filters. amountMin/Max are inclusive INR bounds; a
+    // grant with a single fixed amount uses the same value for both.
+    // eligibleRoles governs whether an early-career PI can apply on
+    // their own or must join as Co-PI.
+    agency: { type: String, enum: GRANT_AGENCIES, default: null, index: true },
+    amountMin: { type: Number, default: null, min: 0 },
+    amountMax: { type: Number, default: null, min: 0 },
+    careerStage: {
+      type: [{ type: String, enum: CAREER_STAGES }],
+      default: [],
+      index: true,
+    },
+    eligibleRoles: {
+      type: [{ type: String, enum: GRANT_ROLES }],
+      default: [],
+    },
     lastVerifiedAgainstUgcCareOn: { type: Date, default: null },
     status: { type: String, enum: STATUSES, default: 'live', index: true },
   },
@@ -98,9 +146,26 @@ opportunitySchema.methods.toPublicJSON = function toPublicJSON() {
           oaType: this.apc.oaType || 'none',
         }
       : { amount: null, currency: 'INR', waiverAvailable: false, oaType: 'none' },
+    creditHours: this.creditHours ?? null,
+    certificateProvided: Boolean(this.certificateProvided),
+    agency: this.agency || null,
+    amountMin: this.amountMin ?? null,
+    amountMax: this.amountMax ?? null,
+    careerStage: this.careerStage || [],
+    eligibleRoles: this.eligibleRoles || [],
     lastVerifiedAgainstUgcCareOn: this.lastVerifiedAgainstUgcCareOn,
   };
 };
 
 export const Opportunity = mongoose.model('Opportunity', opportunitySchema);
-export { TYPES, MODES, BADGES, STATUSES, INDEXING, OA_TYPES };
+export {
+  TYPES,
+  MODES,
+  BADGES,
+  STATUSES,
+  INDEXING,
+  OA_TYPES,
+  GRANT_AGENCIES,
+  CAREER_STAGES,
+  GRANT_ROLES,
+};

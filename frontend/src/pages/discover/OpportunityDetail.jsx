@@ -18,6 +18,10 @@ import {
   Hash,
   Sparkles,
   BookOpen,
+  Clock,
+  Award,
+  Landmark,
+  Users,
 } from 'lucide-react';
 import {
   INDEXING_META,
@@ -25,6 +29,11 @@ import {
   indexingChipClass,
   OA_TYPE_LABEL,
 } from '../../lib/opportunityIndexing';
+import {
+  AGENCY_META,
+  CAREER_STAGE_META,
+  formatAmountRange,
+} from '../../lib/opportunityGrants';
 import { Alert, AlertDescription } from '../../components/ui/Alert';
 import { buttonVariants } from '../../components/ui/Button';
 import { SkeletonCard } from '../../components/ui/Skeleton';
@@ -313,6 +322,54 @@ export default function OpportunityDetail() {
           />
           {opp.issn && (
             <InfoRow icon={<Hash size={15} />} label="ISSN" value={opp.issn} />
+          )}
+          {(opp.type === 'fdp' || opp.type === 'conference') &&
+            opp.creditHours != null &&
+            opp.creditHours > 0 && (
+              <InfoRow
+                icon={<Clock size={15} />}
+                label="Credit hours"
+                value={`${opp.creditHours} AICTE / CPD hours`}
+              />
+            )}
+          {(opp.type === 'fdp' || opp.type === 'conference') && (
+            <InfoRow
+              icon={<Award size={15} />}
+              label="Certificate"
+              value={opp.certificateProvided ? 'Provided on completion' : 'Not provided'}
+            />
+          )}
+          {opp.type === 'grant' && opp.agency && AGENCY_META[opp.agency] && (
+            <InfoRow
+              icon={<Landmark size={15} />}
+              label="Funding agency"
+              value={AGENCY_META[opp.agency].long}
+            />
+          )}
+          {opp.type === 'grant' && formatAmountRange(opp.amountMin, opp.amountMax) && (
+            <InfoRow
+              icon={<IndianRupee size={15} />}
+              label="Grant amount"
+              value={formatAmountRange(opp.amountMin, opp.amountMax)}
+            />
+          )}
+          {opp.type === 'grant' && opp.careerStage?.length > 0 && (
+            <InfoRow
+              icon={<Users size={15} />}
+              label="Career stage"
+              value={opp.careerStage
+                .map(s => CAREER_STAGE_META[s]?.long || s)
+                .join(', ')}
+            />
+          )}
+          {opp.type === 'grant' && opp.eligibleRoles?.length > 0 && (
+            <InfoRow
+              icon={<BadgeCheck size={15} />}
+              label="Apply as"
+              value={opp.eligibleRoles
+                .map(r => (r === 'pi' ? 'PI' : r === 'co_pi' ? 'Co-PI' : 'Investigator'))
+                .join(' / ')}
+            />
           )}
         </div>
       </section>
