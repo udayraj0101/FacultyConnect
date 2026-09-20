@@ -1,6 +1,9 @@
 import mongoose from 'mongoose';
 
-const SOURCES = ['orcid', 'scopus', 'scholar_csv', 'manual'];
+// `vidwan` is a manual-import tag (INFLIBNET has no public API for us to
+// pull from). Users adding publications they lifted from their Vidwan
+// profile can flag them with this source so the provenance is honest.
+const SOURCES = ['orcid', 'scopus', 'scholar_csv', 'manual', 'vidwan'];
 
 const publicationSchema = new mongoose.Schema(
   {

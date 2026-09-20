@@ -119,6 +119,13 @@ const facultySchema = new mongoose.Schema(
     domainTags: { type: [String], default: [] },
     orcidId: { type: String, default: null, index: true, sparse: true },
     scopusAuthorId: { type: String, default: null },
+    // INFLIBNET Vidwan Expert Database ID. Vidwan hosts India-specific
+    // faculty profiles at vidwan.inflibnet.ac.in/profile/{id}. Numeric.
+    // INFLIBNET doesn't expose a public REST API so we can't pull
+    // publications from it — this field lets faculty *link* their
+    // Vidwan presence for discoverability. Nullable, non-unique
+    // (INFLIBNET has no strong ownership check we can verify).
+    vidwanId: { type: String, default: null, trim: true, maxlength: 20 },
     citationCount: { type: Number, default: 0 },
     hIndex: { type: Number, default: 0 },
     i10Index: { type: Number, default: 0 },
@@ -186,6 +193,7 @@ facultySchema.methods.toDirectoryJSON = function toDirectoryJSON() {
     department: this.department || '',
     bio: this.bio || '',
     orcidId: this.orcidId,
+    vidwanId: this.vidwanId || null,
     domainTags: this.domainTags || [],
     citationCount: this.citationCount,
     hIndex: this.hIndex,
@@ -257,6 +265,7 @@ facultySchema.methods.toPublicJSON = function toPublicJSON() {
     domainTags: this.domainTags,
     orcidId: this.orcidId,
     scopusAuthorId: this.scopusAuthorId,
+    vidwanId: this.vidwanId || null,
     citationCount: this.citationCount,
     hIndex: this.hIndex,
     i10Index: this.i10Index,

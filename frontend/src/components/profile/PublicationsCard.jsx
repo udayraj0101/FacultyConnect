@@ -11,7 +11,17 @@ import SourceBadge, { sourceLabel } from './SourceBadge';
 function AddPublicationForm({ onSubmit, onCancel }) {
   const [mode, setMode] = useState('doi');
   const [doi, setDoi] = useState('');
-  const [manual, setManual] = useState({ title: '', authors: '', year: '', venue: '' });
+  // `source` lets the user tag manual entries with a provenance —
+  // primarily 'vidwan' for publications lifted from an INFLIBNET Vidwan
+  // profile (which has no public API, so this is the honest path).
+  // Defaults to 'manual'.
+  const [manual, setManual] = useState({
+    title: '',
+    authors: '',
+    year: '',
+    venue: '',
+    source: 'manual',
+  });
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState('');
 
@@ -44,6 +54,7 @@ function AddPublicationForm({ onSubmit, onCancel }) {
           authors,
           year: manual.year ? Number(manual.year) : null,
           venue: manual.venue.trim() || undefined,
+          source: manual.source || 'manual',
         });
       }
       onCancel();
@@ -145,6 +156,22 @@ function AddPublicationForm({ onSubmit, onCancel }) {
                 placeholder="Journal or conference name"
               />
             </div>
+          </div>
+          <div>
+            <Label htmlFor="pub-source">Source</Label>
+            <select
+              id="pub-source"
+              value={manual.source}
+              onChange={e => setManual(m => ({ ...m, source: e.target.value }))}
+              className="w-full h-10 rounded-md border border-border bg-white px-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+            >
+              <option value="manual">Manual entry</option>
+              <option value="vidwan">Copied from my Vidwan (INFLIBNET) profile</option>
+            </select>
+            <p className="text-[11px] text-text-muted mt-1">
+              Tag this entry with its origin — helpful when you're reconciling your Vidwan
+              profile against ORCID.
+            </p>
           </div>
         </div>
       )}

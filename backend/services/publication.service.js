@@ -103,9 +103,17 @@ export async function addManual(facultyId, input) {
     }
   }
 
+  // Payload's `source` lets the UI tag manually-added pubs as coming from
+  // a specific provenance (e.g. 'vidwan' for entries the faculty copied
+  // from their INFLIBNET Vidwan profile). Defaults to 'manual'. Only the
+  // manual-family sources are allowed; ORCID/Scopus/Scholar entries
+  // arrive via the dedicated importers.
+  const allowedSources = ['manual', 'vidwan'];
+  const source = allowedSources.includes(payload.source) ? payload.source : 'manual';
+
   const doc = await Publication.create({
     facultyId,
-    source: 'manual',
+    source,
     title: payload.title,
     authors: Array.isArray(payload.authors) ? payload.authors : [],
     year: payload.year ?? null,
@@ -113,7 +121,11 @@ export async function addManual(facultyId, input) {
     doi: payload.doi || null,
     citationCount: 0,
   });
-  logger.info('manual publication added', { facultyId, publicationId: doc._id.toString() });
+  logger.info('publication added', {
+    facultyId,
+    publicationId: doc._id.toString(),
+    source,
+  });
   return doc;
 }
 
@@ -131,7 +143,11 @@ export async function remove(facultyId, publicationId) {
     err.status = 404;
     throw err;
   }
-  if (pub.source !== 'manual') {
+  // Faculty-owned sources (manual + vidwan) can be deleted directly.
+  // Sync-managed sources (orcid / scopus / scholar_csv) must be removed
+  // upstream — otherwise the next sync will resurrect the entry.
+  const facultyOwned = ['manual', 'vidwan'];
+  if (!facultyOwned.includes(pub.source)) {
     const err = new Error(
       `This entry came from ${pub.source} — remove it at the source, or it will re-appear on next sync.`,
     );

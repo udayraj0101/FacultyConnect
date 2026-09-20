@@ -15,6 +15,7 @@ import GrantsCard from '../components/profile/GrantsCard';
 import ExternalLinksCard from '../components/profile/ExternalLinksCard';
 import DomainTagsCard from '../components/profile/DomainTagsCard';
 import ScopusEnrichmentCard from '../components/profile/ScopusEnrichmentCard';
+import VidwanCard from '../components/profile/VidwanCard';
 import CasScoreCard from '../components/profile/CasScoreCard';
 import PublicationsCard from '../components/profile/PublicationsCard';
 import DirectoryVisibilityCard from '../components/profile/DirectoryVisibilityCard';
@@ -284,6 +285,11 @@ export default function FacultyProfile() {
         <ScopusEnrichmentCard
           initialScopusId={faculty.scopusAuthorId || ''}
           onSync={publications.syncScopus}
+          onError={setError}
+        />
+        <VidwanCard
+          vidwanId={faculty.vidwanId || ''}
+          onSave={profile.updateVidwan}
           onError={setError}
         />
       </section>

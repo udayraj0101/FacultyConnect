@@ -68,6 +68,18 @@ export const updateFacultySchema = z
     bio: z.string().trim().max(1000).optional(),
     domainTags: z.array(z.string().trim().min(1).max(60)).max(20).optional(),
     scopusAuthorId: z.string().trim().max(60).nullable().optional(),
+    // Vidwan (INFLIBNET) IDs are numeric. Trim + regex + short length cap.
+    // Empty string is accepted so the UI can clear the link with a PATCH
+    // of `{ vidwanId: '' }`.
+    vidwanId: z
+      .string()
+      .trim()
+      .max(20)
+      .refine(v => v === '' || /^\d+$/.test(v), {
+        message: 'Vidwan ID must be numeric (e.g. 123456)',
+      })
+      .nullable()
+      .optional(),
     institutionId: z
       .string()
       .regex(/^[a-f0-9]{24}$/i, { message: 'Must be a 24-char hex id' })
@@ -128,6 +140,9 @@ export const addPublicationSchema = z
     authors: z.array(z.string().trim().min(1).max(200)).max(50).optional(),
     year: z.number().int().min(1900).max(CURRENT_YEAR + 2).nullable().optional(),
     venue: z.string().trim().max(300).optional(),
+    // Optional provenance tag. Only manual-family sources are accepted
+    // here — sync-driven sources arrive via their dedicated importers.
+    source: z.enum(['manual', 'vidwan']).optional(),
   })
   .refine(v => Boolean(v.doi) || Boolean(v.title), {
     message: 'Provide at least a DOI or a title',

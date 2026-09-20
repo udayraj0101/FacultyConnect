@@ -61,6 +61,9 @@ export function useProfile() {
   const updateGrants = list => patch({ grantsReceived: list });
   const updateLinks = links => patch({ externalLinks: links });
   const updateOpenTo = openTo => patch({ openTo });
+  // Empty string clears the Vidwan link — sent as `''` (not null) since
+  // updateFacultySchema accepts either.
+  const updateVidwan = vidwanId => patch({ vidwanId: vidwanId || '' });
 
   const toggleVisibility = async next => {
     const updated = await setDirectoryVisibility(next);
@@ -100,6 +103,7 @@ export function useProfile() {
     updateGrants,
     updateLinks,
     updateOpenTo,
+    updateVidwan,
     toggleVisibility,
     togglePublicProfile,
     connectOrcid,
