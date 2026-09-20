@@ -51,6 +51,48 @@ const CAREER_STAGES = ['early_career', 'mid_career', 'senior', 'any'];
 // role enum so future co-PI matching can compare like-for-like.
 const GRANT_ROLES = ['pi', 'co_pi', 'investigator'];
 
+// Indian states + UTs. FDP + conference filters use these; grants and
+// journals typically ignore location. Names match INDIAN_STATES on the
+// frontend (frontend/src/lib/indianStates.js) — keep in sync manually.
+const INDIAN_STATES = [
+  'Andhra Pradesh',
+  'Arunachal Pradesh',
+  'Assam',
+  'Bihar',
+  'Chhattisgarh',
+  'Goa',
+  'Gujarat',
+  'Haryana',
+  'Himachal Pradesh',
+  'Jharkhand',
+  'Karnataka',
+  'Kerala',
+  'Madhya Pradesh',
+  'Maharashtra',
+  'Manipur',
+  'Meghalaya',
+  'Mizoram',
+  'Nagaland',
+  'Odisha',
+  'Punjab',
+  'Rajasthan',
+  'Sikkim',
+  'Tamil Nadu',
+  'Telangana',
+  'Tripura',
+  'Uttar Pradesh',
+  'Uttarakhand',
+  'West Bengal',
+  'Andaman and Nicobar Islands',
+  'Chandigarh',
+  'Dadra and Nagar Haveli and Daman and Diu',
+  'Delhi',
+  'Jammu and Kashmir',
+  'Ladakh',
+  'Lakshadweep',
+  'Puducherry',
+];
+
 const apcSchema = new mongoose.Schema(
   {
     amount: { type: Number, default: null, min: 0 },
@@ -71,6 +113,12 @@ const opportunitySchema = new mongoose.Schema(
     organizerName: { type: String, required: true, trim: true },
     mode: { type: String, enum: MODES, default: 'offline' },
     location: { type: String, default: null },
+    // Structured location for offline-heavy types (FDP, conference). Kept
+    // alongside `location` (free-text) rather than replacing it so admins
+    // can still type a hostel or campus name. Any-match state filter on
+    // discover; city is case-insensitive substring match.
+    state: { type: String, enum: INDIAN_STATES, default: null, index: true },
+    city: { type: String, default: null, trim: true, maxlength: 120 },
     cost: { type: Number, default: 0, min: 0 },
     deadline: { type: Date, required: true, index: true },
     url: { type: String, default: null },
@@ -131,6 +179,8 @@ opportunitySchema.methods.toPublicJSON = function toPublicJSON() {
     organizerName: this.organizerName,
     mode: this.mode,
     location: this.location,
+    state: this.state || null,
+    city: this.city || null,
     cost: this.cost,
     deadline: this.deadline,
     url: this.url,
@@ -172,4 +222,5 @@ export {
   GRANT_AGENCIES,
   CAREER_STAGES,
   GRANT_ROLES,
+  INDIAN_STATES,
 };

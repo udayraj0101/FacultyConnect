@@ -34,6 +34,8 @@ const SEED = [
     organizerName: 'NIT Trichy',
     mode: 'offline',
     location: 'Tiruchirappalli, Tamil Nadu',
+    state: 'Tamil Nadu',
+    city: 'Tiruchirappalli',
     cost: 3500,
     deadline: daysFromNow(35),
     verificationBadge: 'unverified',
@@ -49,6 +51,8 @@ const SEED = [
     organizerName: 'Anna University',
     mode: 'offline',
     location: 'Chennai, Tamil Nadu',
+    state: 'Tamil Nadu',
+    city: 'Chennai',
     cost: 1500,
     deadline: daysFromNow(28),
     verificationBadge: 'unverified',
@@ -64,6 +68,8 @@ const SEED = [
     organizerName: 'IEEE India Council',
     mode: 'hybrid',
     location: 'Bengaluru, Karnataka',
+    state: 'Karnataka',
+    city: 'Bengaluru',
     cost: 8500,
     deadline: daysFromNow(60),
     url: 'https://indicon.ieeeindia.org/',
@@ -80,6 +86,8 @@ const SEED = [
     organizerName: 'JNU School of Language, Literature & Culture Studies',
     mode: 'offline',
     location: 'New Delhi',
+    state: 'Delhi',
+    city: 'New Delhi',
     cost: 4000,
     deadline: daysFromNow(45),
     verificationBadge: 'unverified',
@@ -255,6 +263,8 @@ async function run() {
     if (doc.amountMax != null) set.amountMax = doc.amountMax;
     if (Array.isArray(doc.careerStage)) set.careerStage = doc.careerStage;
     if (Array.isArray(doc.eligibleRoles)) set.eligibleRoles = doc.eligibleRoles;
+    if (doc.state) set.state = doc.state;
+    if (doc.city) set.city = doc.city;
     // Don't $setOnInsert and $set the same keys — Mongo rejects conflicts.
     for (const key of Object.keys(set)) delete setOnInsert[key];
 

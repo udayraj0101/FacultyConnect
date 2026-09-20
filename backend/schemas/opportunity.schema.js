@@ -29,6 +29,44 @@ const GRANT_AGENCIES = [
 ];
 const CAREER_STAGES = ['early_career', 'mid_career', 'senior', 'any'];
 const GRANT_ROLES = ['pi', 'co_pi', 'investigator'];
+const INDIAN_STATES = [
+  'Andhra Pradesh',
+  'Arunachal Pradesh',
+  'Assam',
+  'Bihar',
+  'Chhattisgarh',
+  'Goa',
+  'Gujarat',
+  'Haryana',
+  'Himachal Pradesh',
+  'Jharkhand',
+  'Karnataka',
+  'Kerala',
+  'Madhya Pradesh',
+  'Maharashtra',
+  'Manipur',
+  'Meghalaya',
+  'Mizoram',
+  'Nagaland',
+  'Odisha',
+  'Punjab',
+  'Rajasthan',
+  'Sikkim',
+  'Tamil Nadu',
+  'Telangana',
+  'Tripura',
+  'Uttar Pradesh',
+  'Uttarakhand',
+  'West Bengal',
+  'Andaman and Nicobar Islands',
+  'Chandigarh',
+  'Dadra and Nagar Haveli and Daman and Diu',
+  'Delhi',
+  'Jammu and Kashmir',
+  'Ladakh',
+  'Lakshadweep',
+  'Puducherry',
+];
 
 const apcSchema = z
   .object({
@@ -79,6 +117,8 @@ export const createOpportunitySchema = z
     amountMax: z.coerce.number().min(0).max(10_000_000_000).nullable().optional(),
     careerStage: z.array(z.enum(CAREER_STAGES)).max(CAREER_STAGES.length).default([]),
     eligibleRoles: z.array(z.enum(GRANT_ROLES)).max(GRANT_ROLES.length).default([]),
+    state: z.enum(INDIAN_STATES).nullable().optional(),
+    city: z.string().trim().max(120).nullable().optional(),
   })
   .strict();
 
@@ -111,6 +151,10 @@ export const listOpportunitiesQuerySchema = z.object({
   amount_min: z.coerce.number().min(0).max(10_000_000_000).optional(),
   amount_max: z.coerce.number().min(0).max(10_000_000_000).optional(),
   career_stage: csvList(CAREER_STAGES),
+  // FDP + conference location + fee filters.
+  state: csvList(INDIAN_STATES),
+  city: z.string().trim().max(120).optional(),
+  cost_max: z.coerce.number().int().min(0).max(10_000_000).optional(),
   deadline_before: z.coerce.date().optional(),
   q: z.string().trim().max(120).optional(),
   // Default to newest-first so freshly-published listings surface

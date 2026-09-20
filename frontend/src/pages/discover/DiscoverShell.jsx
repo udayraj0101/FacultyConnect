@@ -45,6 +45,7 @@ import {
   AMOUNT_PRESETS,
   formatAmountRange,
 } from '../../lib/opportunityGrants';
+import { INDIAN_STATES, FEE_PRESETS } from '../../lib/indianStates';
 
 const MODE_OPTIONS = [
   { value: '', label: 'Any' },
@@ -326,7 +327,11 @@ function OpportunityCard({ opp, typeConfig, bookmarked, onToggleBookmark, onRepo
           <div className="text-xs text-text-muted flex items-center gap-3 flex-wrap">
             <span className="inline-flex items-center gap-1">
               <span className="capitalize">{opp.mode}</span>
-              {opp.location ? ` · ${opp.location}` : ''}
+              {opp.city || opp.state
+                ? ` · ${[opp.city, opp.state].filter(Boolean).join(', ')}`
+                : opp.location
+                  ? ` · ${opp.location}`
+                  : ''}
             </span>
             <span
               className={`inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[11px] font-semibold ${
@@ -388,6 +393,9 @@ export default function DiscoverShell({ typeConfig, extraFilters }) {
     agency: [],
     amountMax: '',
     careerStage: [],
+    state: '',
+    city: '',
+    costMax: '',
   });
   const [pendingQuery, setPendingQuery] = useState('');
   const [pendingDomain, setPendingDomain] = useState('');
@@ -416,6 +424,9 @@ export default function DiscoverShell({ typeConfig, extraFilters }) {
       agency: [],
       amountMax: '',
       careerStage: [],
+      state: '',
+      city: '',
+      costMax: '',
     });
     setPendingQuery('');
     setPendingDomain('');
@@ -454,6 +465,9 @@ export default function DiscoverShell({ typeConfig, extraFilters }) {
       agency: isGrant ? filters.agency : [],
       amount_max: isGrant && filters.amountMax ? filters.amountMax : undefined,
       career_stage: isGrant ? filters.careerStage : [],
+      state: isFdpOrConf && filters.state ? filters.state : undefined,
+      city: isFdpOrConf && filters.city ? filters.city : undefined,
+      cost_max: isFdpOrConf && filters.costMax !== '' ? filters.costMax : undefined,
     };
     if (filters.deadlineWithin) {
       const days = Number(filters.deadlineWithin);
@@ -517,6 +531,9 @@ export default function DiscoverShell({ typeConfig, extraFilters }) {
       agency: [],
       amountMax: '',
       careerStage: [],
+      state: '',
+      city: '',
+      costMax: '',
     });
     setPendingQuery('');
     setPendingDomain('');
@@ -535,6 +552,9 @@ export default function DiscoverShell({ typeConfig, extraFilters }) {
     if (filters.agency?.length) n += filters.agency.length;
     if (filters.amountMax) n += 1;
     if (filters.careerStage?.length) n += filters.careerStage.length;
+    if (filters.state) n += 1;
+    if (filters.city) n += 1;
+    if (filters.costMax !== '') n += 1;
     return n;
   }, [filters]);
 
@@ -845,6 +865,58 @@ export default function DiscoverShell({ typeConfig, extraFilters }) {
 
               {(typeConfig.type === 'fdp' || typeConfig.type === 'conference') && (
                 <>
+                  <div>
+                    <label className="block text-xs font-semibold uppercase tracking-wide text-text-muted mb-2">
+                      State
+                    </label>
+                    <select
+                      value={filters.state}
+                      onChange={e =>
+                        setFilters(prev => ({ ...prev, state: e.target.value }))
+                      }
+                      className="w-full h-10 rounded-md border border-border bg-white px-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                    >
+                      <option value="">Any state</option>
+                      {INDIAN_STATES.map(s => (
+                        <option key={s} value={s}>
+                          {s}
+                        </option>
+                      ))}
+                    </select>
+                    <p className="text-[10px] text-text-muted mt-1">
+                      Only listings with a structured location (offline / hybrid) match.
+                    </p>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold uppercase tracking-wide text-text-muted mb-2">
+                      City
+                    </label>
+                    <Input
+                      placeholder="e.g. Bengaluru"
+                      value={filters.city}
+                      onChange={e =>
+                        setFilters(prev => ({ ...prev, city: e.target.value }))
+                      }
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold uppercase tracking-wide text-text-muted mb-2">
+                      Maximum registration fee
+                    </label>
+                    <select
+                      value={filters.costMax}
+                      onChange={e =>
+                        setFilters(prev => ({ ...prev, costMax: e.target.value }))
+                      }
+                      className="w-full h-10 rounded-md border border-border bg-white px-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                    >
+                      {FEE_PRESETS.map(o => (
+                        <option key={o.value || 'any-fee'} value={o.value}>
+                          {o.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
                   <div>
                     <label className="block text-xs font-semibold uppercase tracking-wide text-text-muted mb-2">
                       Minimum credit hours

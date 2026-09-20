@@ -40,6 +40,9 @@ export async function listOpportunities(filters, { viewerId } = {}) {
     amount_min: amountMin,
     amount_max: amountMax,
     career_stage: careerStage,
+    state,
+    city,
+    cost_max: costMax,
     deadline_before: deadlineBefore,
     q,
     sort,
@@ -54,6 +57,23 @@ export async function listOpportunities(filters, { viewerId } = {}) {
   if (mode) query.mode = mode;
   if (cost === 'free') query.cost = 0;
   if (cost === 'paid') query.cost = { $gt: 0 };
+  // Registration-fee cap layered on top of the cost enum: `Under Rs. X`
+  // filters compose with `Paid` to mean "paid AND at most X". Merges
+  // with the existing query.cost object safely when cost is already
+  // { $gt: 0 } from the paid path.
+  if (Number.isFinite(costMax)) {
+    query.cost =
+      query.cost && typeof query.cost === 'object' && !Array.isArray(query.cost)
+        ? { ...query.cost, $lte: costMax }
+        : { $lte: costMax, ...(cost === 'free' ? { $eq: 0 } : {}) };
+  }
+
+  // State: any-match against the multi-select. City: case-insensitive
+  // substring match so "chennai" matches "Chennai, Tamil Nadu" seeds.
+  if (state?.length) query.state = { $in: state };
+  if (city) {
+    query.city = new RegExp(escapeRegex(city), 'i');
+  }
 
   if (domain?.length) {
     // Case-insensitive tag match

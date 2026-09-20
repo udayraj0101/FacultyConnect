@@ -306,8 +306,18 @@ export default function OpportunityDetail() {
             label="Mode"
             value={<span className="capitalize">{opp.mode}</span>}
           />
-          {opp.location && (
-            <InfoRow icon={<MapPin size={15} />} label="Location" value={opp.location} />
+          {(opp.city || opp.state || opp.location) && (
+            <InfoRow
+              icon={<MapPin size={15} />}
+              label="Location"
+              value={
+                opp.city || opp.state
+                  ? [opp.city, opp.state, opp.location && opp.location !== opp.city ? opp.location : null]
+                      .filter(Boolean)
+                      .join(', ')
+                  : opp.location
+              }
+            />
           )}
           {opp.type !== 'journal' && opp.type !== 'grant' && (
             <InfoRow
