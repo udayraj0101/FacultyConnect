@@ -192,7 +192,7 @@ function RequestCard({ request, direction, onRespond, submitting, onOpenMessage 
   );
 }
 
-function ConnectionCard({ connection }) {
+function ConnectionCard({ connection, onOpenMessage }) {
   const cp = connection.counterpart;
   return (
     <motion.article
@@ -245,26 +245,36 @@ function ConnectionCard({ connection }) {
         </span>
       </div>
 
-      {cp?.email && (
-        <div className="flex items-center justify-between gap-3 rounded-md bg-success/5 border border-success/20 px-3 py-2">
-          <a
-            href={`mailto:${cp.email}`}
-            className="inline-flex items-center gap-1 text-xs font-semibold text-text-light hover:text-primary"
-          >
-            <Mail size={12} /> {cp.email}
-          </a>
-          {connection.connectedAt && (
-            <span className="text-[11px] text-text-muted">
-              Connected{' '}
-              {new Date(connection.connectedAt).toLocaleDateString(undefined, {
-                day: 'numeric',
-                month: 'short',
-                year: 'numeric',
-              })}
-            </span>
+      <div className="flex items-center justify-between gap-3 rounded-md bg-success/5 border border-success/20 px-3 py-2 flex-wrap">
+        <div className="flex items-center gap-3 flex-wrap min-w-0">
+          {cp?.id && (
+            <button
+              onClick={() => onOpenMessage?.(cp.id)}
+              className="inline-flex items-center gap-1 text-xs font-semibold text-primary hover:underline"
+            >
+              <MessageSquare size={12} /> Message
+            </button>
+          )}
+          {cp?.email && (
+            <a
+              href={`mailto:${cp.email}`}
+              className="inline-flex items-center gap-1 text-xs font-semibold text-text-light hover:text-primary"
+            >
+              <Mail size={12} /> {cp.email}
+            </a>
           )}
         </div>
-      )}
+        {connection.connectedAt && (
+          <span className="text-[11px] text-text-muted">
+            Connected{' '}
+            {new Date(connection.connectedAt).toLocaleDateString(undefined, {
+              day: 'numeric',
+              month: 'short',
+              year: 'numeric',
+            })}
+          </span>
+        )}
+      </div>
     </motion.article>
   );
 }
@@ -561,7 +571,11 @@ export default function ConnectRequests() {
               ) : (
                 <div className="space-y-3">
                   {filteredConnections.map(c => (
-                    <ConnectionCard key={c.requestId} connection={c} />
+                    <ConnectionCard
+                      key={c.requestId}
+                      connection={c}
+                      onOpenMessage={openMessage}
+                    />
                   ))}
                 </div>
               )}
