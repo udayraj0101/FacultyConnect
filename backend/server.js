@@ -18,6 +18,7 @@ import directoryRoutes from './routes/directory.routes.js';
 import reportRoutes from './routes/report.routes.js';
 import publicRoutes from './routes/public.routes.js';
 import notificationRoutes from './routes/notification.routes.js';
+import savedSearchRoutes from './routes/savedSearch.routes.js';
 import rateLimit from 'express-rate-limit';
 import { renderPublicProfileHtml } from './services/publicHtml.service.js';
 import { generatePublicProfileSitemap } from './services/sitemap.service.js';
@@ -84,6 +85,7 @@ app.use('/v1/directory', directoryRoutes);
 app.use('/v1/reports', reportRoutes);
 app.use('/v1/public', publicRoutes);
 app.use('/v1/notifications', notificationRoutes);
+app.use('/v1/saved-searches', savedSearchRoutes);
 
 // ------------------------------------------------------------------
 // Root-level public HTML routes — served by the reverse proxy at /f/*

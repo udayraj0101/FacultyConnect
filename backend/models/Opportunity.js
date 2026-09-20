@@ -154,6 +154,10 @@ opportunitySchema.methods.toPublicJSON = function toPublicJSON() {
     careerStage: this.careerStage || [],
     eligibleRoles: this.eligibleRoles || [],
     lastVerifiedAgainstUgcCareOn: this.lastVerifiedAgainstUgcCareOn,
+    // Surfaced so the saved-search cron can determine "new since last
+    // alerted" without an extra query. Also useful for "posted X days
+    // ago" copy on cards down the line.
+    createdAt: this.createdAt,
   };
 };
 

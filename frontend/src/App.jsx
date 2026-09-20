@@ -16,6 +16,7 @@ import Directory from './pages/Directory';
 import DirectoryProfile from './pages/DirectoryProfile';
 import ConnectRequests from './pages/ConnectRequests';
 import Notifications from './pages/Notifications';
+import SavedSearches from './pages/SavedSearches';
 import CollegeAdminDashboard from './pages/CollegeAdminDashboard';
 import PlatformAdminConsole from './pages/PlatformAdminConsole';
 import Login from './pages/Login';
@@ -87,6 +88,7 @@ export default function App() {
               <Route path="/directory/:id" element={<DirectoryProfile />} />
               <Route path="/requests" element={<ConnectRequests />} />
               <Route path="/notifications" element={<Notifications />} />
+              <Route path="/saved-searches" element={<SavedSearches />} />
             </Route>
 
             {/* College Admin portal */}

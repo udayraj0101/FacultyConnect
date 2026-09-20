@@ -10,6 +10,7 @@ import {
   Handshake,
   LogOut,
   ChevronDown,
+  Bookmark,
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { getConnectRequestsSummary } from '../../services/connectRequest.service';
@@ -253,6 +254,17 @@ export default function AppHeader() {
               >
                 <User size={14} className="text-text-muted" />
                 Manage profile
+              </button>
+              <button
+                onClick={() => {
+                  setMenuOpen(false);
+                  navigate('/saved-searches');
+                }}
+                className="w-full text-left px-4 py-2 text-sm text-text-light hover:bg-muted flex items-center gap-2"
+                role="menuitem"
+              >
+                <Bookmark size={14} className="text-text-muted" />
+                Saved searches
               </button>
               <button
                 onClick={onLogout}

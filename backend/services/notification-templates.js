@@ -140,6 +140,38 @@ Sign in: ${frontendUrl()}/login
     // Admins receive many of these; in-app roster nudge is enough.
     email: null,
   },
+
+  saved_search_matches: {
+    inApp: ({ searchName, count }) => ({
+      title: `${count} new ${count === 1 ? 'match' : 'matches'} for "${searchName}"`,
+      body:
+        count === 1
+          ? 'A fresh opportunity was posted overnight that matches your saved search.'
+          : 'Fresh opportunities were posted overnight that match your saved search.',
+      link: '/saved-searches',
+    }),
+    email: ({ searchName, count, previews = [] }, recipient) => ({
+      subject: `${count} new ${count === 1 ? 'match' : 'matches'} for "${searchName}" on FacultyConnect`,
+      text: `Hi ${recipient.name || 'there'},
+
+Fresh opportunities matched your saved search "${searchName}" overnight:
+
+${previews
+  .slice(0, 5)
+  .map(p => `- ${p.title}${p.deadline ? ` (deadline ${new Date(p.deadline).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })})` : ''}`)
+  .join('\n')}
+${count > previews.length ? `\n... and ${count - previews.length} more.` : ''}
+
+View them all:
+  ${frontendUrl()}/saved-searches
+
+Manage your saved searches (rename / disable alerts / delete):
+  ${frontendUrl()}/saved-searches
+
+— FacultyConnect
+`,
+    }),
+  },
 };
 
 export function renderInApp(type, payload) {

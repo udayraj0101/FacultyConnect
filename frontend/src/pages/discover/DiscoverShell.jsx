@@ -18,6 +18,7 @@ import {
   Award,
   Landmark,
   IndianRupee,
+  Bell,
 } from 'lucide-react';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
@@ -27,8 +28,10 @@ import EmptyState from '../../components/ui/EmptyState';
 import HeroBanner from '../../components/dashboard/HeroBanner';
 import SectionCard from '../../components/dashboard/SectionCard';
 import ReportModal from '../../components/ReportModal';
+import SaveSearchModal from '../../components/discover/SaveSearchModal';
 import { listOpportunities, toggleBookmark } from '../../services/opportunity.service';
 import { getMe } from '../../services/faculty.service';
+import { useToast } from '../../components/ui/Toast';
 import {
   INDEXING_META,
   INDEXING_ORDER,
@@ -395,6 +398,8 @@ export default function DiscoverShell({ typeConfig, extraFilters }) {
   const [savingBookmarks, setSavingBookmarks] = useState(new Set());
   const [reportTarget, setReportTarget] = useState(null);
   const [filtersOpen, setFiltersOpen] = useState(true);
+  const [saveSearchOpen, setSaveSearchOpen] = useState(false);
+  const { toast } = useToast();
 
   // Reset filters when the user switches pages (typeConfig changes)
   useEffect(() => {
@@ -553,6 +558,59 @@ export default function DiscoverShell({ typeConfig, extraFilters }) {
     });
   };
 
+  // Auto-composed name for the save-search modal. Cheap summary of the
+  // active filters so the common path is one click. The user can edit
+  // before saving.
+  const savedSearchName = useMemo(() => {
+    const bits = [typeConfig.label];
+    if (filters.domain) bits.push(filters.domain);
+    if (filters.indexing?.length) bits.push(filters.indexing.slice(0, 2).join('+'));
+    if (filters.agency?.length) bits.push(filters.agency[0].toUpperCase());
+    if (filters.careerStage?.length) {
+      bits.push(filters.careerStage[0].replace('_', '-'));
+    }
+    if (filters.creditHoursMin) bits.push(`${filters.creditHoursMin}+ CPD`);
+    if (filters.certificate === 'true') bits.push('cert');
+    if (filters.mode) bits.push(filters.mode);
+    if (filters.cost === 'free') bits.push('free');
+    if (filters.q) bits.push(`"${filters.q}"`);
+    return bits.slice(0, 5).join(' · ').slice(0, 100);
+  }, [filters, typeConfig]);
+
+  // Persisted payload for the saved-search backend. type/page/limit are
+  // re-attached by the backend when the search runs, so we strip them.
+  const savedSearchFilters = useMemo(() => {
+    const out = {};
+    if (filters.mode) out.mode = filters.mode;
+    if (filters.cost) out.cost = filters.cost;
+    if (filters.q) out.q = filters.q;
+    if (filters.domain) out.domain = [filters.domain];
+    if (filters.sort && filters.sort !== 'newest') out.sort = filters.sort;
+    if (filters.indexing?.length) out.indexing = filters.indexing;
+    if (filters.creditHoursMin) out.credit_hours_min = filters.creditHoursMin;
+    if (filters.certificate) out.certificate = filters.certificate;
+    if (filters.agency?.length) out.agency = filters.agency;
+    if (filters.amountMax) out.amount_max = filters.amountMax;
+    if (filters.careerStage?.length) out.career_stage = filters.careerStage;
+    if (filters.deadlineWithin) {
+      const days = Number(filters.deadlineWithin);
+      const end = new Date();
+      end.setDate(end.getDate() + days);
+      out.deadline_before = end.toISOString();
+    }
+    return out;
+  }, [filters]);
+
+  const onSaved = saved => {
+    toast({
+      title: 'Search saved',
+      description: saved.alertsEnabled
+        ? "You'll be alerted when new matches are posted."
+        : 'Alerts are off — you can enable them later from Saved searches.',
+      variant: 'success',
+    });
+  };
+
   const heroStats = useMemo(() => {
     const verified = data.opportunities.filter(
       o => o.verificationBadge === 'ugc_care_verified' || o.verificationBadge === 'scopus_indexed',
@@ -605,6 +663,14 @@ export default function DiscoverShell({ typeConfig, extraFilters }) {
         </button>
 
         <div className="flex items-center gap-4 flex-wrap">
+          <button
+            onClick={() => setSaveSearchOpen(true)}
+            className="inline-flex items-center gap-1.5 rounded-full border border-primary/30 bg-primary/5 px-3 py-1.5 text-xs font-semibold text-primary hover:bg-primary/10 transition-colors"
+            title="Save this filter combo and get alerts for new matches"
+          >
+            <Bell size={12} />
+            Save this search
+          </button>
           <label className="inline-flex items-center gap-2 text-xs text-text-muted">
             <span className="font-semibold uppercase tracking-wider">Sort</span>
             <select
@@ -963,6 +1029,16 @@ export default function DiscoverShell({ typeConfig, extraFilters }) {
           onSubmitted={() => setReportTarget(null)}
         />
       )}
+
+      <SaveSearchModal
+        open={saveSearchOpen}
+        defaultName={savedSearchName}
+        type={typeConfig.type}
+        typeLabel={typeConfig.label}
+        filters={savedSearchFilters}
+        onClose={() => setSaveSearchOpen(false)}
+        onSaved={onSaved}
+      />
     </div>
   );
 }
