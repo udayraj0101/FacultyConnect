@@ -8,11 +8,13 @@ import {
   AlertCircle,
   ChevronDown,
   ChevronUp,
+  FileDown,
 } from 'lucide-react';
 import { Card, CardContent } from '../ui/Card';
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
 import { getCasScore, updateCasManualInputs } from '../../services/cas.service';
+import { downloadCv } from '../../services/faculty.service';
 
 // Metadata for the manual counters. Order matches how CAS applicants
 // typically fill out the official form so the UI reads left-to-right
@@ -100,6 +102,7 @@ export default function CasScoreCard({ onError }) {
   const [draft, setDraft] = useState({});
   const [saving, setSaving] = useState(false);
   const [breakdownOpen, setBreakdownOpen] = useState(false);
+  const [downloading, setDownloading] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -132,6 +135,18 @@ export default function CasScoreCard({ onError }) {
   const cancel = () => {
     setDraft(data.manualInputs || {});
     setEditing(false);
+  };
+
+  const downloadCasCv = async () => {
+    if (downloading) return;
+    setDownloading(true);
+    try {
+      await downloadCv('ugc_cas9');
+    } catch (err) {
+      onError?.(err.response?.data?.error?.message || 'Could not download CAS-9 CV');
+    } finally {
+      setDownloading(false);
+    }
   };
 
   const save = async () => {
@@ -201,9 +216,21 @@ export default function CasScoreCard({ onError }) {
             </div>
           </div>
           {!editing && (
-            <Button size="sm" variant="outline" onClick={startEdit}>
-              Edit inputs
-            </Button>
+            <div className="flex items-center gap-2 shrink-0">
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={downloadCasCv}
+                disabled={downloading}
+                title="Download the CAS-9 promotion proforma pre-filled from your profile"
+              >
+                <FileDown size={13} className="mr-1" />
+                {downloading ? 'Generating…' : 'CAS-9 PDF'}
+              </Button>
+              <Button size="sm" variant="outline" onClick={startEdit}>
+                Edit inputs
+              </Button>
+            </div>
           )}
         </div>
 

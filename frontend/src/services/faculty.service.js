@@ -30,8 +30,12 @@ export async function getOrcidAuthorizeUrl() {
   return data.authorizeUrl;
 }
 
-export async function downloadCv() {
-  const response = await api.get('/faculty/me/cv/export', { responseType: 'blob' });
+export async function downloadCv(template) {
+  const params = template ? { template } : undefined;
+  const response = await api.get('/faculty/me/cv/export', {
+    responseType: 'blob',
+    params,
+  });
   const disposition = response.headers['content-disposition'] || '';
   const match = disposition.match(/filename="?([^";]+)"?/i);
   const filename = match ? match[1] : 'cv.pdf';
