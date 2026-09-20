@@ -34,6 +34,7 @@ export async function listOpportunities(filters, { viewerId } = {}) {
     cost,
     domain,
     indexing,
+    quartile,
     credit_hours_min: creditHoursMin,
     certificate,
     agency,
@@ -99,6 +100,13 @@ export async function listOpportunities(filters, { viewerId } = {}) {
   // AND them, and ANDing would surprise the user (they picked either).
   if (indexing?.length) {
     query.indexing = { $in: indexing };
+  }
+
+  // Scopus quartile filter. Any-match — Q1+Q2 both selected surfaces
+  // journals in either bucket. Unranked journals (quartile null) are
+  // excluded when the filter is active.
+  if (quartile?.length) {
+    query.quartile = { $in: quartile };
   }
 
   // FDP + conference: minimum credit hours the listing must offer.
@@ -220,7 +228,7 @@ export async function listOpportunities(filters, { viewerId } = {}) {
  * free-text or range filters and don't get facets.
  */
 async function computeFacets(baseQuery) {
-  const [mode, indexing, agency, careerStage, state, costBuckets] = await Promise.all([
+  const [mode, indexing, quartile, agency, careerStage, state, costBuckets] = await Promise.all([
     Opportunity.aggregate([
       { $match: baseQuery },
       { $group: { _id: '$mode', c: { $sum: 1 } } },
@@ -229,6 +237,11 @@ async function computeFacets(baseQuery) {
       { $match: baseQuery },
       { $unwind: '$indexing' },
       { $group: { _id: '$indexing', c: { $sum: 1 } } },
+    ]),
+    Opportunity.aggregate([
+      { $match: baseQuery },
+      { $match: { quartile: { $ne: null } } },
+      { $group: { _id: '$quartile', c: { $sum: 1 } } },
     ]),
     Opportunity.aggregate([
       { $match: baseQuery },
@@ -261,6 +274,7 @@ async function computeFacets(baseQuery) {
   return {
     mode: toMap(mode),
     indexing: toMap(indexing),
+    quartile: toMap(quartile),
     agency: toMap(agency),
     careerStage: toMap(careerStage),
     state: toMap(state),
@@ -366,6 +380,10 @@ export async function createOpportunity({ actor, input }) {
     url: input.url || null,
     issn: input.issn || null,
     verificationBadge: 'unverified',
+    quartile: input.quartile || null,
+    citeScore: input.citeScore ?? null,
+    citeScorePercentile: input.citeScorePercentile ?? null,
+    subjectArea: input.subjectArea || null,
     status,
   });
 

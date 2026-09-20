@@ -187,6 +187,10 @@ const SEED = [
     indexing: ['scopus', 'ugc_care_i', 'wos_scie'],
     predatoryScreened: true,
     apc: { amount: 0, currency: 'INR', waiverAvailable: false, oaType: 'green' },
+    quartile: 'Q2',
+    citeScore: 2.1,
+    citeScorePercentile: 62,
+    subjectArea: 'Engineering (Multidisciplinary)',
     lastVerifiedAgainstUgcCareOn: daysFromNow(-14),
   },
   {
@@ -204,6 +208,10 @@ const SEED = [
     indexing: ['scopus', 'wos_esci'],
     predatoryScreened: true,
     apc: { amount: 0, currency: 'INR', waiverAvailable: true, oaType: 'hybrid' },
+    quartile: 'Q1',
+    citeScore: 5.4,
+    citeScorePercentile: 88,
+    subjectArea: 'Multidisciplinary Sciences',
     lastVerifiedAgainstUgcCareOn: daysFromNow(-30),
   },
   {
@@ -221,6 +229,10 @@ const SEED = [
     indexing: ['scopus', 'wos_esci', 'ugc_care_ii'],
     predatoryScreened: true,
     apc: { amount: 250000, currency: 'INR', waiverAvailable: false, oaType: 'hybrid' },
+    quartile: 'Q3',
+    citeScore: 1.4,
+    citeScorePercentile: 41,
+    subjectArea: 'Electrical and Electronic Engineering',
     lastVerifiedAgainstUgcCareOn: daysFromNow(-45),
   },
   {
@@ -238,6 +250,10 @@ const SEED = [
     indexing: ['scopus', 'ugc_care_i', 'wos_scie', 'doaj'],
     predatoryScreened: true,
     apc: { amount: 0, currency: 'INR', waiverAvailable: false, oaType: 'diamond' },
+    quartile: 'Q2',
+    citeScore: 3.2,
+    citeScorePercentile: 68,
+    subjectArea: 'Earth and Planetary Sciences',
     lastVerifiedAgainstUgcCareOn: daysFromNow(-7),
   },
 ];
@@ -275,6 +291,10 @@ async function run() {
     if (doc.city) set.city = doc.city;
     if (doc.startDate) set.startDate = doc.startDate;
     if (doc.endDate) set.endDate = doc.endDate;
+    if (doc.quartile) set.quartile = doc.quartile;
+    if (doc.citeScore != null) set.citeScore = doc.citeScore;
+    if (doc.citeScorePercentile != null) set.citeScorePercentile = doc.citeScorePercentile;
+    if (doc.subjectArea) set.subjectArea = doc.subjectArea;
     // Don't $setOnInsert and $set the same keys — Mongo rejects conflicts.
     for (const key of Object.keys(set)) delete setOnInsert[key];
 

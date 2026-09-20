@@ -13,6 +13,7 @@ const INDEXING = [
   'pubmed',
 ];
 const OA_TYPES = ['gold', 'green', 'diamond', 'hybrid', 'none'];
+const QUARTILES = ['Q1', 'Q2', 'Q3', 'Q4'];
 const GRANT_AGENCIES = [
   'dst',
   'serb',
@@ -110,6 +111,10 @@ export const createOpportunitySchema = z
     indexing: z.array(z.enum(INDEXING)).max(INDEXING.length).default([]),
     predatoryScreened: z.boolean().default(false),
     apc: apcSchema,
+    quartile: z.enum(QUARTILES).nullable().optional(),
+    citeScore: z.coerce.number().min(0).max(1000).nullable().optional(),
+    citeScorePercentile: z.coerce.number().min(0).max(100).nullable().optional(),
+    subjectArea: z.string().trim().max(160).nullable().optional(),
     creditHours: z.coerce.number().int().min(0).max(500).nullable().optional(),
     certificateProvided: z.boolean().optional(),
     agency: z.enum(GRANT_AGENCIES).nullable().optional(),
@@ -143,6 +148,10 @@ export const listOpportunitiesQuerySchema = z.object({
     .optional()
     .transform(v => (v ? v.split(',').map(s => s.trim()).filter(Boolean) : undefined)),
   indexing: csvList(INDEXING),
+  // Any-match against the Scopus quartile field. Journals without a
+  // Q-rank set are excluded when the filter is on — Q-filtering is a
+  // trust-quality drilldown and unranked journals aren't the target.
+  quartile: csvList(QUARTILES),
   // FDP + conference filters.
   credit_hours_min: z.coerce.number().int().min(0).max(500).optional(),
   certificate: z.enum(['true', 'false']).optional(),

@@ -25,6 +25,13 @@ const INDEXING = [
 // Hybrid = subscription journal with optional per-article OA.
 const OA_TYPES = ['gold', 'green', 'diamond', 'hybrid', 'none'];
 
+// Scopus quartile ranking within a journal's subject category. Q1 is the
+// top 25% by CiteScore in the category, Q4 the bottom 25%. Sourced from
+// the Scopus Serial Title API (`SNIPList` / `SJRList` — we prefer the
+// CiteScore-derived quartile). Nullable — new / niche journals may not
+// yet have a quartile assigned by Scopus.
+const QUARTILES = ['Q1', 'Q2', 'Q3', 'Q4'];
+
 // Indian funding agencies faculty regularly apply to, plus catch-alls.
 // Grant-type opportunities primarily use this. Adding a new agency is
 // a schema change (index + enum) so keep the catch-all buckets around.
@@ -145,6 +152,14 @@ const opportunitySchema = new mongoose.Schema(
     predatoryScreened: { type: Boolean, default: false, index: true },
     // Journal-type only: what the author pays and under what OA model.
     apc: { type: apcSchema, default: () => ({ oaType: 'none', waiverAvailable: false }) },
+    // Scopus quartile + CiteScore snapshot. Populated by
+    // `scripts/enrich-journals-scopus.js` walking live journal listings
+    // with an ISSN. Left nullable so unranked / new journals surface on
+    // Discover without a Q-badge rather than being filtered out.
+    quartile: { type: String, enum: QUARTILES, default: null, index: true },
+    citeScore: { type: Number, default: null, min: 0 },
+    citeScorePercentile: { type: Number, default: null, min: 0, max: 100 },
+    subjectArea: { type: String, default: null, trim: true, maxlength: 160 },
     // FDP + conference filters. AICTE / CPD credit hours are the primary
     // reason faculty attend, and "certificate provided" is a hard filter
     // for CAS documentation. Left null on non-FDP/conference docs so the
@@ -204,6 +219,10 @@ opportunitySchema.methods.toPublicJSON = function toPublicJSON() {
           oaType: this.apc.oaType || 'none',
         }
       : { amount: null, currency: 'INR', waiverAvailable: false, oaType: 'none' },
+    quartile: this.quartile || null,
+    citeScore: this.citeScore ?? null,
+    citeScorePercentile: this.citeScorePercentile ?? null,
+    subjectArea: this.subjectArea || null,
     creditHours: this.creditHours ?? null,
     certificateProvided: Boolean(this.certificateProvided),
     agency: this.agency || null,
@@ -227,6 +246,7 @@ export {
   STATUSES,
   INDEXING,
   OA_TYPES,
+  QUARTILES,
   GRANT_AGENCIES,
   CAREER_STAGES,
   GRANT_ROLES,

@@ -31,6 +31,7 @@ import {
   INDEXING_ORDER,
   indexingChipClass,
   OA_TYPE_LABEL,
+  QUARTILE_META,
 } from '../../lib/opportunityIndexing';
 import {
   AGENCY_META,
@@ -265,6 +266,18 @@ export default function OpportunityDetail() {
         className="flex items-center justify-between gap-4 flex-wrap rounded-xl border border-border bg-white p-4"
       >
         <div className="flex items-center gap-2 flex-wrap">
+          {opp.type === 'journal' && opp.quartile && QUARTILE_META[opp.quartile] && (
+            <span
+              title={
+                opp.subjectArea
+                  ? `${QUARTILE_META[opp.quartile].long} · ${opp.subjectArea}`
+                  : QUARTILE_META[opp.quartile].long
+              }
+              className={`inline-flex items-center gap-1 rounded-full ${QUARTILE_META[opp.quartile].class} border px-3 py-1 text-xs font-bold tracking-wide`}
+            >
+              Scopus {QUARTILE_META[opp.quartile].label}
+            </span>
+          )}
           {opp.type === 'journal' && opp.indexing?.length > 0 ? (
             <>
               {INDEXING_ORDER.filter(k => opp.indexing.includes(k)).map(key => (
@@ -458,6 +471,59 @@ export default function OpportunityDetail() {
           </div>
         </section>
       )}
+
+      {/* Scopus journal metrics — surfaced only when the enrichment job
+          has populated at least one of CiteScore / quartile / subject area.
+          Kept in its own card so it doesn't visually compete with the
+          Publishing model above. */}
+      {opp.type === 'journal' &&
+        (opp.citeScore != null || opp.quartile || opp.subjectArea) && (
+          <section className="rounded-xl border border-border bg-white p-5 sm:p-6">
+            <h2 className="text-xs font-bold uppercase tracking-widest text-text-muted mb-3 inline-flex items-center gap-2">
+              <BadgeCheck size={13} /> Scopus metrics
+            </h2>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-0 divide-y sm:divide-y-0 divide-border">
+              {opp.quartile && (
+                <InfoRow
+                  icon={<BadgeCheck size={15} />}
+                  label="Quartile"
+                  value={
+                    <span>
+                      {QUARTILE_META[opp.quartile]?.label} —{' '}
+                      <span className="text-text-muted">
+                        {QUARTILE_META[opp.quartile]?.long.split('—')[1]?.trim()}
+                      </span>
+                    </span>
+                  }
+                />
+              )}
+              {opp.citeScore != null && (
+                <InfoRow
+                  icon={<Sparkles size={15} />}
+                  label="CiteScore"
+                  value={
+                    <span>
+                      <span className="font-semibold">{opp.citeScore.toFixed(1)}</span>
+                      {opp.citeScorePercentile != null
+                        ? ` · ${Math.round(opp.citeScorePercentile)}th percentile in category`
+                        : ''}
+                    </span>
+                  }
+                />
+              )}
+              {opp.subjectArea && (
+                <InfoRow
+                  icon={<BookOpen size={15} />}
+                  label="Subject area"
+                  value={opp.subjectArea}
+                />
+              )}
+            </div>
+            <p className="text-[10px] text-text-muted mt-3">
+              Source: Scopus Serial Title API (CITESCORE view). Values refresh nightly.
+            </p>
+          </section>
+        )}
 
       {/* UGC-CARE verification note */}
       {opp.verificationBadge === 'ugc_care_verified' && opp.lastVerifiedAgainstUgcCareOn && (

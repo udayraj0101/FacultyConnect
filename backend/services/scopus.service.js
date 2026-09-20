@@ -70,6 +70,108 @@ export async function fetchAuthorMetrics(scopusAuthorId) {
   }
 }
 
+/**
+ * Fetch Scopus quartile + CiteScore metrics for a journal by ISSN.
+ *
+ * Calls the Serial Title API (`/content/serial/title/issn/{issn}`) which
+ * returns the CiteScore year-list along with per-subject-area SNIP / SJR /
+ * quartile entries. We flatten to the *primary* subject area (first entry
+ * in `subject-area`) and take its latest quartile — that matches what
+ * scopus.com surfaces above the fold for the journal.
+ *
+ * Free-tier keys are eligible for this endpoint as of Elsevier's Dev
+ * Portal terms (last checked 2026-09), unlike the author-retrieval
+ * METRICS view which needs an institutional IP.
+ *
+ * Returns `null` when Scopus has no record of the ISSN (404) so the
+ * caller can skip that journal without treating it as a hard failure.
+ */
+export async function fetchJournalMetricsByIssn(issn) {
+  const { key, base } = requireEnv();
+  const normalised = String(issn || '').trim();
+  if (!normalised) return null;
+  try {
+    const response = await axios.get(
+      `${base}/content/serial/title/issn/${encodeURIComponent(normalised)}`,
+      {
+        params: { view: 'CITESCORE' },
+        headers: headers(key),
+        timeout: 15000,
+      },
+    );
+    const entry = response.data?.['serial-metadata-response']?.entry?.[0];
+    if (!entry) return null;
+
+    const subjectAreas = entry['subject-area'] || [];
+    const primarySubject = subjectAreas[0];
+    const subjectArea = primarySubject
+      ? String(primarySubject['$'] || primarySubject['@abbrev'] || '').trim() || null
+      : null;
+
+    // CiteScore blocks: `citeScoreYearInfoList.citeScoreCurrentMetric` is
+    // the latest published value; the per-year breakdown sits in
+    // `citeScoreYearInfoList.citeScoreYearInfo[]`. Quartile lives inside
+    // the subject-area rank arrays, not on the top-level metric.
+    const citeScoreInfo = entry.citeScoreYearInfoList;
+    const rawCiteScore = citeScoreInfo?.citeScoreCurrentMetric;
+    const citeScore = rawCiteScore != null && rawCiteScore !== ''
+      ? parseFloat(rawCiteScore)
+      : null;
+
+    // The subject-area rank list gives us quartile + percentile. Prefer
+    // the primary subject's rank; fall back to the first rank we can find.
+    const rankEntries =
+      citeScoreInfo?.citeScoreYearInfo?.[0]?.citeScoreInformationList?.[0]
+        ?.citeScoreInfoList?.[0]?.rank || [];
+    const primaryRank = rankEntries[0] || null;
+    const percentileRaw = primaryRank?.percentile;
+    const citeScorePercentile = percentileRaw != null && percentileRaw !== ''
+      ? parseFloat(percentileRaw)
+      : null;
+    const quartile = normaliseQuartile(
+      primaryRank?.['@type'] || primaryRank?.threshold,
+      citeScorePercentile,
+    );
+
+    return {
+      issn: normalised,
+      subjectArea,
+      citeScore: Number.isFinite(citeScore) ? citeScore : null,
+      citeScorePercentile: Number.isFinite(citeScorePercentile) ? citeScorePercentile : null,
+      quartile,
+    };
+  } catch (error) {
+    const status = error.response?.status;
+    if (status === 404) return null;
+    logger.warn('scopus serial fetch failed', { issn: normalised, status });
+    if (status === 401 || status === 403) {
+      const err = new Error(
+        'Scopus refused the serial-title request. Free-tier keys should work; check ELSEVIER_API_KEY and that the app is registered on the Elsevier Developer Portal.',
+      );
+      err.code = 'SCOPUS_UNAUTHORIZED';
+      err.status = 502;
+      throw err;
+    }
+    const err = new Error('Scopus request failed');
+    err.code = 'SCOPUS_REQUEST_FAILED';
+    err.status = 502;
+    throw err;
+  }
+}
+
+// Serial Title API returns quartile either as an explicit `Q1`..`Q4`
+// literal or via CiteScore percentile. Bucket by percentile using
+// Scopus's own definition: Q1 = 75-100th, Q2 = 50-74, Q3 = 25-49, Q4 = 0-24.
+function normaliseQuartile(raw, percentile) {
+  if (raw && /^Q[1-4]$/i.test(String(raw))) return String(raw).toUpperCase();
+  const p = Number(percentile);
+  if (!Number.isFinite(p)) return null;
+  if (p >= 75) return 'Q1';
+  if (p >= 50) return 'Q2';
+  if (p >= 25) return 'Q3';
+  return 'Q4';
+}
+
 export async function fetchCitationCountByDoi(doi) {
   const { key, base } = requireEnv();
   try {

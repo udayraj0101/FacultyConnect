@@ -41,6 +41,8 @@ import {
   INDEXING_META,
   INDEXING_ORDER,
   indexingChipClass,
+  QUARTILE_META,
+  QUARTILE_ORDER,
 } from '../../lib/opportunityIndexing';
 import {
   AGENCY_META,
@@ -100,6 +102,27 @@ function IndexingChips({ indexing }) {
         </span>
       ))}
     </div>
+  );
+}
+
+// Scopus quartile pill for journal cards. Colour-coded by Q-rank so the
+// eye picks Q1 out of a long list without reading. Rendered next to the
+// indexing chips row when the journal has a quartile populated.
+function QuartilePill({ opp }) {
+  if (opp.type !== 'journal' || !opp.quartile) return null;
+  const meta = QUARTILE_META[opp.quartile];
+  if (!meta) return null;
+  return (
+    <span
+      title={
+        opp.subjectArea
+          ? `${meta.long} · ${opp.subjectArea}`
+          : meta.long
+      }
+      className={`inline-flex items-center gap-1 rounded-full ${meta.class} border px-2 py-0.5 text-[10px] font-bold tracking-wide`}
+    >
+      {meta.label}
+    </span>
   );
 }
 
@@ -260,6 +283,7 @@ function OpportunityCard({ opp, typeConfig, bookmarked, onToggleBookmark, onRepo
       >
         <div className="flex items-start justify-between gap-3">
           <div className="flex items-center gap-2 flex-wrap">
+            <QuartilePill opp={opp} />
             <IndexingChips indexing={opp.indexing} />
             <TrustMarker opp={opp} />
             <LegacyFallbackBadge opp={opp} />
@@ -307,6 +331,15 @@ function OpportunityCard({ opp, typeConfig, bookmarked, onToggleBookmark, onRepo
                 month: 'short',
                 year: 'numeric',
               })}
+            </div>
+          )}
+          {opp.type === 'journal' && opp.citeScore != null && (
+            <div className="text-[10px] text-text-muted mt-0.5">
+              CiteScore <span className="font-semibold text-text-light">{opp.citeScore.toFixed(1)}</span>
+              {opp.citeScorePercentile != null
+                ? ` · ${Math.round(opp.citeScorePercentile)}th percentile`
+                : ''}
+              {opp.subjectArea ? ` · ${opp.subjectArea}` : ''}
             </div>
           )}
         </div>
@@ -567,6 +600,7 @@ export default function DiscoverShell({ typeConfig, extraFilters }) {
     deadlineWithin: '',
     sort: 'newest',
     indexing: [],
+    quartile: [],
     creditHoursMin: '',
     certificate: '',
     agency: [],
@@ -649,6 +683,7 @@ export default function DiscoverShell({ typeConfig, extraFilters }) {
       domain: filters.domain ? [filters.domain] : [],
       sort: filters.sort,
       indexing: typeConfig.type === 'journal' ? filters.indexing : [],
+      quartile: typeConfig.type === 'journal' ? filters.quartile : [],
       credit_hours_min: isFdpOrConf && filters.creditHoursMin ? filters.creditHoursMin : undefined,
       certificate: isFdpOrConf && filters.certificate ? filters.certificate : undefined,
       agency: isGrant ? filters.agency : [],
@@ -753,6 +788,7 @@ export default function DiscoverShell({ typeConfig, extraFilters }) {
     if (filters.domain) n += 1;
     if (filters.deadlineWithin) n += 1;
     if (filters.indexing?.length) n += filters.indexing.length;
+    if (filters.quartile?.length) n += filters.quartile.length;
     if (filters.creditHoursMin) n += 1;
     if (filters.certificate) n += 1;
     if (filters.agency?.length) n += filters.agency.length;
@@ -773,6 +809,16 @@ export default function DiscoverShell({ typeConfig, extraFilters }) {
         ? current.filter(k => k !== key)
         : [...current, key];
       return { ...prev, indexing: next };
+    });
+  };
+
+  const toggleQuartile = key => {
+    setFilters(prev => {
+      const current = prev.quartile || [];
+      const next = current.includes(key)
+        ? current.filter(k => k !== key)
+        : [...current, key];
+      return { ...prev, quartile: next };
     });
   };
 
@@ -845,6 +891,13 @@ export default function DiscoverShell({ typeConfig, extraFilters }) {
         key: `indexing-${key}`,
         label: INDEXING_META[key]?.short || key,
         onRemove: () => removeFromArray('indexing', key),
+      });
+    }
+    for (const key of filters.quartile || []) {
+      chips.push({
+        key: `quartile-${key}`,
+        label: `Scopus ${key}`,
+        onRemove: () => removeFromArray('quartile', key),
       });
     }
     if (filters.creditHoursMin) {
@@ -945,6 +998,7 @@ export default function DiscoverShell({ typeConfig, extraFilters }) {
     const bits = [typeConfig.label];
     if (filters.domain) bits.push(filters.domain);
     if (filters.indexing?.length) bits.push(filters.indexing.slice(0, 2).join('+'));
+    if (filters.quartile?.length) bits.push(filters.quartile.join('+'));
     if (filters.agency?.length) bits.push(filters.agency[0].toUpperCase());
     if (filters.careerStage?.length) {
       bits.push(filters.careerStage[0].replace('_', '-'));
@@ -967,6 +1021,7 @@ export default function DiscoverShell({ typeConfig, extraFilters }) {
     if (filters.domain) out.domain = [filters.domain];
     if (filters.sort && filters.sort !== 'newest') out.sort = filters.sort;
     if (filters.indexing?.length) out.indexing = filters.indexing;
+    if (filters.quartile?.length) out.quartile = filters.quartile;
     if (filters.creditHoursMin) out.credit_hours_min = filters.creditHoursMin;
     if (filters.certificate) out.certificate = filters.certificate;
     if (filters.agency?.length) out.agency = filters.agency;
@@ -1247,6 +1302,38 @@ export default function DiscoverShell({ typeConfig, extraFilters }) {
                       );
                     })}
                   </div>
+                </div>
+              )}
+
+              {typeConfig.type === 'journal' && (
+                <div>
+                  <div className="text-xs font-semibold uppercase tracking-wide text-text-muted mb-2">
+                    Scopus quartile
+                  </div>
+                  <div className="space-y-1">
+                    {QUARTILE_ORDER.map(key => {
+                      const checked = filters.quartile.includes(key);
+                      return (
+                        <label
+                          key={key}
+                          className="flex items-center gap-2 text-sm cursor-pointer py-0.5"
+                          title={QUARTILE_META[key].long}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            onChange={() => toggleQuartile(key)}
+                            className="accent-primary"
+                          />
+                          <span>{QUARTILE_META[key].label} — {QUARTILE_META[key].long.split('—')[1]?.trim()}</span>
+                          {count('quartile', key)}
+                        </label>
+                      );
+                    })}
+                  </div>
+                  <p className="text-[10px] text-text-muted mt-1">
+                    From the latest Scopus CiteScore snapshot. Unranked journals are hidden when this filter is on.
+                  </p>
                 </div>
               )}
 

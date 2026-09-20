@@ -46,3 +46,33 @@ export function indexingChipClass(key) {
   const tone = INDEXING_META[key]?.tone || 'muted';
   return TONE_CLASS[tone];
 }
+
+// Scopus quartile ranking. Q1 = top 25% by CiteScore within the subject
+// area, Q4 = bottom 25%. Colours are the widely-adopted convention on
+// journal-ranking sites (green→red gradient); we use Tailwind tokens the
+// rest of the app already ships instead of raw hex to keep dark-mode /
+// theming compatibility.
+export const QUARTILE_META = {
+  Q1: {
+    label: 'Q1',
+    long: 'Q1 — top 25% by CiteScore in its subject area',
+    class: 'bg-success/10 text-success border-success/30',
+  },
+  Q2: {
+    label: 'Q2',
+    long: 'Q2 — top 26–50% by CiteScore in its subject area',
+    class: 'bg-primary/10 text-primary border-primary/30',
+  },
+  Q3: {
+    label: 'Q3',
+    long: 'Q3 — top 51–75% by CiteScore in its subject area',
+    class: 'bg-secondary/10 text-secondary border-secondary/30',
+  },
+  Q4: {
+    label: 'Q4',
+    long: 'Q4 — bottom 25% by CiteScore in its subject area',
+    class: 'bg-muted text-text-muted border-border',
+  },
+};
+
+export const QUARTILE_ORDER = ['Q1', 'Q2', 'Q3', 'Q4'];
