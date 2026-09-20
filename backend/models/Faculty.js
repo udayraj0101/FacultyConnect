@@ -52,6 +52,33 @@ const grantSchema = new mongoose.Schema(
   { _id: true },
 );
 
+// Manual counters for the UGC 2018 CAS Research Score calculator (Wave 12).
+// The auto-compute pulls from Publications + grantsReceived + awards, but
+// PhD supervision, books/chapters and invited lectures aren't captured
+// anywhere else on the profile — so we let the faculty enter their own
+// tallies and persist them next to the rest of their profile. Kept as a
+// flat integer bag on purpose: the calculator prints a per-line breakdown
+// with the point value, so raw counts are all we need.
+const casManualInputsSchema = new mongoose.Schema(
+  {
+    phdAwarded: { type: Number, default: 0, min: 0, max: 200 },
+    phdOngoing: { type: Number, default: 0, min: 0, max: 200 },
+    mPhilAwarded: { type: Number, default: 0, min: 0, max: 200 },
+    booksInternational: { type: Number, default: 0, min: 0, max: 100 },
+    booksNational: { type: Number, default: 0, min: 0, max: 100 },
+    chaptersInternational: { type: Number, default: 0, min: 0, max: 500 },
+    chaptersNational: { type: Number, default: 0, min: 0, max: 500 },
+    editorInternational: { type: Number, default: 0, min: 0, max: 100 },
+    editorNational: { type: Number, default: 0, min: 0, max: 100 },
+    invitedLecturesIntlAbroad: { type: Number, default: 0, min: 0, max: 500 },
+    invitedLecturesIntlInIndia: { type: Number, default: 0, min: 0, max: 500 },
+    invitedLecturesNational: { type: Number, default: 0, min: 0, max: 500 },
+    invitedLecturesState: { type: Number, default: 0, min: 0, max: 500 },
+    consultancyLakhs: { type: Number, default: 0, min: 0, max: 100000 },
+  },
+  { _id: false },
+);
+
 const externalLinksSchema = new mongoose.Schema(
   {
     website: { type: String, trim: true, default: '' },
@@ -119,6 +146,7 @@ const facultySchema = new mongoose.Schema(
     awards: { type: [awardSchema], default: [] },
     grantsReceived: { type: [grantSchema], default: [] },
     externalLinks: { type: externalLinksSchema, default: () => ({}) },
+    casManualInputs: { type: casManualInputsSchema, default: () => ({}) },
     // Multi-select intent flags — see OPEN_TO_OPTIONS. Any-match filter
     // on directory search (open_to=co_pi returns everyone open to Co-PI
     // requests, regardless of what else they're open to). Indexed for
@@ -176,8 +204,29 @@ facultySchema.methods.toDirectoryJSON = function toDirectoryJSON() {
       github: this.externalLinks?.github || '',
       twitter: this.externalLinks?.twitter || '',
     },
+    casManualInputs: sanitiseCasManualInputs(this.casManualInputs),
   };
 };
+
+function sanitiseCasManualInputs(raw) {
+  const src = raw || {};
+  return {
+    phdAwarded: src.phdAwarded || 0,
+    phdOngoing: src.phdOngoing || 0,
+    mPhilAwarded: src.mPhilAwarded || 0,
+    booksInternational: src.booksInternational || 0,
+    booksNational: src.booksNational || 0,
+    chaptersInternational: src.chaptersInternational || 0,
+    chaptersNational: src.chaptersNational || 0,
+    editorInternational: src.editorInternational || 0,
+    editorNational: src.editorNational || 0,
+    invitedLecturesIntlAbroad: src.invitedLecturesIntlAbroad || 0,
+    invitedLecturesIntlInIndia: src.invitedLecturesIntlInIndia || 0,
+    invitedLecturesNational: src.invitedLecturesNational || 0,
+    invitedLecturesState: src.invitedLecturesState || 0,
+    consultancyLakhs: src.consultancyLakhs || 0,
+  };
+}
 
 function serializeSubdoc(doc) {
   if (!doc) return null;

@@ -15,6 +15,7 @@ import GrantsCard from '../components/profile/GrantsCard';
 import ExternalLinksCard from '../components/profile/ExternalLinksCard';
 import DomainTagsCard from '../components/profile/DomainTagsCard';
 import ScopusEnrichmentCard from '../components/profile/ScopusEnrichmentCard';
+import CasScoreCard from '../components/profile/CasScoreCard';
 import PublicationsCard from '../components/profile/PublicationsCard';
 import DirectoryVisibilityCard from '../components/profile/DirectoryVisibilityCard';
 import PublicProfileCard from '../components/profile/PublicProfileCard';
@@ -94,6 +95,7 @@ function SectionNav() {
     { id: 'career', label: 'Career' },
     { id: 'research', label: 'Research' },
     { id: 'publications', label: 'Publications' },
+    { id: 'cas', label: 'CAS score' },
     { id: 'network', label: 'Directory' },
   ];
   return (
@@ -284,6 +286,15 @@ export default function FacultyProfile() {
           onSync={publications.syncScopus}
           onError={setError}
         />
+      </section>
+
+      {/* CAS SCORE — UGC 2018 Research Score calculator */}
+      <section id="cas" className="space-y-4 scroll-mt-28">
+        <SectionHeading
+          label="CAS Research Score"
+          hint="UGC 2018 promotion self-estimate"
+        />
+        <CasScoreCard onError={setError} />
       </section>
 
       {/* PUBLICATIONS */}

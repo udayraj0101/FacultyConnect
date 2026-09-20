@@ -5,6 +5,7 @@ import {
   updateFacultySchema,
   visibilitySchema,
   publicProfileSchema,
+  casManualInputsSchema,
 } from '../schemas/faculty.schema.js';
 import {
   getMeHandler,
@@ -23,6 +24,10 @@ import {
 } from '../controllers/publication.controller.js';
 import { exportCvHandler } from '../controllers/cv.controller.js';
 import { collegeOverviewHandler } from '../controllers/stats.controller.js';
+import {
+  getCasScoreHandler,
+  updateCasManualInputsHandler,
+} from '../controllers/cas.controller.js';
 
 const router = Router();
 
@@ -51,5 +56,15 @@ router.post('/me/import/scholar-csv', importScholarCsvHandler);
 
 router.get('/me/cv/export', exportCvHandler);
 router.get('/me/college-overview', collegeOverviewHandler);
+
+// UGC 2018 CAS Research Score (Wave 12). GET auto-computes from stored
+// profile data + saved manual counters. PATCH persists a partial update
+// to the manual counters and returns the recomputed score in one round-trip.
+router.get('/me/cas-score', getCasScoreHandler);
+router.patch(
+  '/me/cas-score/manual',
+  validateBody(casManualInputsSchema),
+  updateCasManualInputsHandler,
+);
 
 export default router;

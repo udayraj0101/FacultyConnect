@@ -93,6 +93,30 @@ export const publicProfileSchema = z.object({
   publicProfileEnabled: z.boolean(),
 });
 
+// UGC 2018 CAS Research Score — manual counters. Every field is optional
+// so the UI can send single-field updates as the user edits one row.
+// Bounds mirror the Mongoose subdoc caps.
+const nonNegInt = (max = 500) => z.coerce.number().int().min(0).max(max).optional();
+
+export const casManualInputsSchema = z
+  .object({
+    phdAwarded: nonNegInt(200),
+    phdOngoing: nonNegInt(200),
+    mPhilAwarded: nonNegInt(200),
+    booksInternational: nonNegInt(100),
+    booksNational: nonNegInt(100),
+    chaptersInternational: nonNegInt(500),
+    chaptersNational: nonNegInt(500),
+    editorInternational: nonNegInt(100),
+    editorNational: nonNegInt(100),
+    invitedLecturesIntlAbroad: nonNegInt(500),
+    invitedLecturesIntlInIndia: nonNegInt(500),
+    invitedLecturesNational: nonNegInt(500),
+    invitedLecturesState: nonNegInt(500),
+    consultancyLakhs: z.coerce.number().min(0).max(100000).optional(),
+  })
+  .strict();
+
 export const addPublicationSchema = z
   .object({
     doi: z
