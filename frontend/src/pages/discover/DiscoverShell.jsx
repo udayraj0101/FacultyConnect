@@ -9,6 +9,7 @@ import {
   ExternalLink,
   CalendarClock,
   BadgeCheck,
+  ShieldCheck,
   ShieldAlert,
   Flag,
   SlidersHorizontal,
@@ -24,6 +25,11 @@ import SectionCard from '../../components/dashboard/SectionCard';
 import ReportModal from '../../components/ReportModal';
 import { listOpportunities, toggleBookmark } from '../../services/opportunity.service';
 import { getMe } from '../../services/faculty.service';
+import {
+  INDEXING_META,
+  INDEXING_ORDER,
+  indexingChipClass,
+} from '../../lib/opportunityIndexing';
 
 const MODE_OPTIONS = [
   { value: '', label: 'Any' },
@@ -55,7 +61,51 @@ function daysUntil(deadline) {
   return Math.ceil((new Date(deadline).getTime() - Date.now()) / (24 * 60 * 60 * 1000));
 }
 
-function VerificationBadge({ badge }) {
+function IndexingChips({ indexing }) {
+  if (!indexing?.length) return null;
+  // Preserve the canonical order (scopus first, WoS next, etc.) so cards
+  // don't shuffle depending on insertion order.
+  const ordered = INDEXING_ORDER.filter(k => indexing.includes(k));
+  return (
+    <div className="flex items-center gap-1 flex-wrap">
+      {ordered.map(key => (
+        <span
+          key={key}
+          title={INDEXING_META[key]?.long || key}
+          className={`inline-flex items-center gap-1 rounded-full ${indexingChipClass(key)} border px-2 py-0.5 text-[10px] font-semibold`}
+        >
+          <BadgeCheck size={10} /> {INDEXING_META[key]?.short || key}
+        </span>
+      ))}
+    </div>
+  );
+}
+
+function TrustMarker({ opp }) {
+  if (opp.type !== 'journal') return null;
+  // Green shield for platform-vouched "not predatory" journals. When the
+  // marker isn't set we render nothing rather than a red "unverified"
+  // signal — we don't want to accidentally accuse a legitimate journal
+  // just because our screening backlog hasn't reached it yet.
+  if (opp.predatoryScreened) {
+    return (
+      <span
+        title="Screened against predatory-venue lists (Beall / Retraction Watch signals). Not a predatory journal."
+        className="inline-flex items-center gap-1 rounded-full bg-success/10 text-success border border-success/30 px-2 py-0.5 text-[10px] font-semibold"
+      >
+        <ShieldCheck size={10} /> Not predatory
+      </span>
+    );
+  }
+  return null;
+}
+
+function LegacyFallbackBadge({ opp }) {
+  // Non-journal listings still use the legacy single-badge field. Also
+  // shows for journals that haven't been enriched with indexing[] yet
+  // during the seed → prod migration window.
+  if (opp.type === 'journal' && (opp.indexing?.length || opp.predatoryScreened)) return null;
+  const badge = opp.verificationBadge;
   if (badge === 'ugc_care_verified') {
     return (
       <span className="inline-flex items-center gap-1 rounded-full bg-success/10 text-success border border-success/30 px-2 py-0.5 text-[11px] font-semibold">
@@ -101,7 +151,9 @@ function OpportunityCard({ opp, typeConfig, bookmarked, onToggleBookmark, onRepo
       >
         <div className="flex items-start justify-between gap-3">
           <div className="flex items-center gap-2 flex-wrap">
-            <VerificationBadge badge={opp.verificationBadge} />
+            <IndexingChips indexing={opp.indexing} />
+            <TrustMarker opp={opp} />
+            <LegacyFallbackBadge opp={opp} />
           </div>
           <div className="flex items-center gap-1" onClick={stop}>
             <button
@@ -137,6 +189,17 @@ function OpportunityCard({ opp, typeConfig, bookmarked, onToggleBookmark, onRepo
             {opp.title}
           </h3>
           <div className="text-xs text-text-muted mt-0.5">{opp.organizerName}</div>
+          {opp.type === 'journal' && opp.lastVerifiedAgainstUgcCareOn && (
+            <div className="text-[10px] text-text-muted mt-1 inline-flex items-center gap-1">
+              <BadgeCheck size={10} className="text-success" />
+              UGC-CARE last verified{' '}
+              {new Date(opp.lastVerifiedAgainstUgcCareOn).toLocaleDateString(undefined, {
+                day: 'numeric',
+                month: 'short',
+                year: 'numeric',
+              })}
+            </div>
+          )}
         </div>
 
         <p className="text-sm text-text-muted line-clamp-3 leading-relaxed flex-1">
@@ -203,6 +266,7 @@ export default function DiscoverShell({ typeConfig, extraFilters }) {
     domain: '',
     deadlineWithin: '',
     sort: 'newest',
+    indexing: [],
   });
   const [pendingQuery, setPendingQuery] = useState('');
   const [pendingDomain, setPendingDomain] = useState('');
@@ -216,7 +280,7 @@ export default function DiscoverShell({ typeConfig, extraFilters }) {
 
   // Reset filters when the user switches pages (typeConfig changes)
   useEffect(() => {
-    setFilters({ mode: '', cost: '', q: '', domain: '', deadlineWithin: '', sort: 'newest' });
+    setFilters({ mode: '', cost: '', q: '', domain: '', deadlineWithin: '', sort: 'newest', indexing: [] });
     setPendingQuery('');
     setPendingDomain('');
   }, [typeConfig.type]);
@@ -246,6 +310,7 @@ export default function DiscoverShell({ typeConfig, extraFilters }) {
       q: filters.q,
       domain: filters.domain ? [filters.domain] : [],
       sort: filters.sort,
+      indexing: typeConfig.type === 'journal' ? filters.indexing : [],
     };
     if (filters.deadlineWithin) {
       const days = Number(filters.deadlineWithin);
@@ -296,7 +361,7 @@ export default function DiscoverShell({ typeConfig, extraFilters }) {
   };
 
   const clearFilters = () => {
-    setFilters({ mode: '', cost: '', q: '', domain: '', deadlineWithin: '', sort: 'newest' });
+    setFilters({ mode: '', cost: '', q: '', domain: '', deadlineWithin: '', sort: 'newest', indexing: [] });
     setPendingQuery('');
     setPendingDomain('');
   };
@@ -308,8 +373,19 @@ export default function DiscoverShell({ typeConfig, extraFilters }) {
     if (filters.q) n += 1;
     if (filters.domain) n += 1;
     if (filters.deadlineWithin) n += 1;
+    if (filters.indexing?.length) n += filters.indexing.length;
     return n;
   }, [filters]);
+
+  const toggleIndexing = key => {
+    setFilters(prev => {
+      const current = prev.indexing || [];
+      const next = current.includes(key)
+        ? current.filter(k => k !== key)
+        : [...current, key];
+      return { ...prev, indexing: next };
+    });
+  };
 
   const heroStats = useMemo(() => {
     const verified = data.opportunities.filter(
@@ -506,6 +582,34 @@ export default function DiscoverShell({ typeConfig, extraFilters }) {
                   ))}
                 </div>
               </div>
+
+              {typeConfig.type === 'journal' && (
+                <div>
+                  <div className="text-xs font-semibold uppercase tracking-wide text-text-muted mb-2">
+                    Indexing
+                  </div>
+                  <div className="space-y-1">
+                    {INDEXING_ORDER.map(key => {
+                      const checked = filters.indexing.includes(key);
+                      return (
+                        <label
+                          key={key}
+                          className="flex items-center gap-2 text-sm cursor-pointer py-0.5"
+                          title={INDEXING_META[key].long}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            onChange={() => toggleIndexing(key)}
+                            className="accent-primary"
+                          />
+                          {INDEXING_META[key].long}
+                        </label>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
 
               {extraFilters && <div>{extraFilters}</div>}
 

@@ -2,6 +2,27 @@ import { z } from 'zod';
 
 const TYPES = ['fdp', 'conference', 'grant', 'journal'];
 const MODES = ['online', 'offline', 'hybrid'];
+const INDEXING = [
+  'scopus',
+  'wos_scie',
+  'wos_ssci',
+  'wos_esci',
+  'ugc_care_i',
+  'ugc_care_ii',
+  'doaj',
+  'pubmed',
+];
+const OA_TYPES = ['gold', 'green', 'diamond', 'hybrid', 'none'];
+
+const apcSchema = z
+  .object({
+    amount: z.coerce.number().min(0).max(10_000_000).nullable().optional(),
+    currency: z.string().trim().max(8).default('INR'),
+    waiverAvailable: z.boolean().default(false),
+    oaType: z.enum(OA_TYPES).default('none'),
+  })
+  .strict()
+  .optional();
 
 export const createOpportunitySchema = z
   .object({
@@ -32,6 +53,9 @@ export const createOpportunitySchema = z
       .regex(/^\d{4}-\d{3}[\dxX]$/, 'ISSN must look like 1234-5678')
       .optional()
       .or(z.literal('')),
+    indexing: z.array(z.enum(INDEXING)).max(INDEXING.length).default([]),
+    predatoryScreened: z.boolean().default(false),
+    apc: apcSchema,
   })
   .strict();
 
@@ -53,6 +77,7 @@ export const listOpportunitiesQuerySchema = z.object({
     .string()
     .optional()
     .transform(v => (v ? v.split(',').map(s => s.trim()).filter(Boolean) : undefined)),
+  indexing: csvList(INDEXING),
   deadline_before: z.coerce.date().optional(),
   q: z.string().trim().max(120).optional(),
   // Default to newest-first so freshly-published listings surface

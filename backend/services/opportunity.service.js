@@ -19,6 +19,7 @@ export async function listOpportunities(filters) {
     mode,
     cost,
     domain,
+    indexing,
     deadline_before: deadlineBefore,
     q,
     sort,
@@ -37,6 +38,13 @@ export async function listOpportunities(filters) {
   if (domain?.length) {
     // Case-insensitive tag match
     query.domainTags = { $in: domain.map(d => new RegExp(`^${escapeRegex(d)}$`, 'i')) };
+  }
+
+  // Any-match against the multi-select indexing filter. A journal that
+  // sits in Scopus AND UGC-CARE Group I hits both filters — no need to
+  // AND them, and ANDing would surprise the user (they picked either).
+  if (indexing?.length) {
+    query.indexing = { $in: indexing };
   }
 
   const now = new Date();

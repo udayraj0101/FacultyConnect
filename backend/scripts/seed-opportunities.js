@@ -101,6 +101,9 @@ const SEED = [
     url: 'https://www.ias.ac.in/Journals/Sadhana/',
     issn: '0256-2499',
     verificationBadge: 'ugc_care_verified',
+    indexing: ['scopus', 'ugc_care_i', 'wos_scie'],
+    predatoryScreened: true,
+    apc: { amount: 0, currency: 'INR', waiverAvailable: false, oaType: 'green' },
     lastVerifiedAgainstUgcCareOn: daysFromNow(-14),
   },
   {
@@ -115,7 +118,44 @@ const SEED = [
     deadline: daysFromNow(120),
     issn: '0970-4140',
     verificationBadge: 'scopus_indexed',
+    indexing: ['scopus', 'wos_esci'],
+    predatoryScreened: true,
+    apc: { amount: 0, currency: 'INR', waiverAvailable: true, oaType: 'hybrid' },
     lastVerifiedAgainstUgcCareOn: daysFromNow(-30),
+  },
+  {
+    type: 'journal',
+    title: 'IETE Journal of Research',
+    description:
+      'Taylor & Francis journal from the Institution of Electronics and Telecommunication Engineers, India. Covers electronics, telecom, computer engineering, information technology, and allied disciplines.',
+    domainTags: ['Electronics', 'Telecommunications', 'Computer Engineering'],
+    organizerName: 'IETE / Taylor & Francis',
+    mode: 'online',
+    cost: 0,
+    deadline: daysFromNow(150),
+    issn: '0377-2063',
+    verificationBadge: 'scopus_indexed',
+    indexing: ['scopus', 'wos_esci', 'ugc_care_ii'],
+    predatoryScreened: true,
+    apc: { amount: 250000, currency: 'INR', waiverAvailable: false, oaType: 'hybrid' },
+    lastVerifiedAgainstUgcCareOn: daysFromNow(-45),
+  },
+  {
+    type: 'journal',
+    title: 'Journal of the Indian Society of Remote Sensing',
+    description:
+      'Springer journal on remote sensing, GIS, and photogrammetry with a strong Indian context. Peer-reviewed, quarterly.',
+    domainTags: ['Remote Sensing', 'Geospatial', 'Earth Observation'],
+    organizerName: 'Indian Society of Remote Sensing / Springer',
+    mode: 'online',
+    cost: 0,
+    deadline: daysFromNow(90),
+    issn: '0255-660X',
+    verificationBadge: 'ugc_care_verified',
+    indexing: ['scopus', 'ugc_care_i', 'wos_scie', 'doaj'],
+    predatoryScreened: true,
+    apc: { amount: 0, currency: 'INR', waiverAvailable: false, oaType: 'diamond' },
+    lastVerifiedAgainstUgcCareOn: daysFromNow(-7),
   },
 ];
 
@@ -125,16 +165,36 @@ async function run() {
   logger.info('starting seed', { existingCount: beforeCount });
 
   let inserted = 0;
+  let backfilled = 0;
   for (const doc of SEED) {
+    // Backfill fields that were added after the initial seed (indexing,
+    // predatoryScreened, apc) onto existing docs so `npm run seed:*`
+    // stays the single source of demo truth. Fields that predate the
+    // schema change ($setOnInsert) are only written on first insert to
+    // preserve any admin edits.
+    const setOnInsert = { ...doc, status: 'live' };
+    const set = {};
+    if (doc.indexing) set.indexing = doc.indexing;
+    if (typeof doc.predatoryScreened === 'boolean') {
+      set.predatoryScreened = doc.predatoryScreened;
+    }
+    if (doc.apc) set.apc = doc.apc;
+    // Don't $setOnInsert and $set the same keys — Mongo rejects conflicts.
+    for (const key of Object.keys(set)) delete setOnInsert[key];
+
+    const update = { $setOnInsert: setOnInsert };
+    if (Object.keys(set).length) update.$set = set;
+
     const result = await Opportunity.updateOne(
       { title: doc.title, organizerName: doc.organizerName },
-      { $setOnInsert: { ...doc, status: 'live' } },
+      update,
       { upsert: true },
     );
     if (result.upsertedCount) inserted += 1;
+    else if (result.modifiedCount) backfilled += 1;
   }
   const afterCount = await Opportunity.countDocuments();
-  logger.info('seed complete', { inserted, totalNow: afterCount });
+  logger.info('seed complete', { inserted, backfilled, totalNow: afterCount });
   process.exit(0);
 }
 

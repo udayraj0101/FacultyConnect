@@ -8,6 +8,7 @@ import {
   ExternalLink,
   CalendarClock,
   BadgeCheck,
+  ShieldCheck,
   ShieldAlert,
   Flag,
   MapPin,
@@ -16,7 +17,14 @@ import {
   Building2,
   Hash,
   Sparkles,
+  BookOpen,
 } from 'lucide-react';
+import {
+  INDEXING_META,
+  INDEXING_ORDER,
+  indexingChipClass,
+  OA_TYPE_LABEL,
+} from '../../lib/opportunityIndexing';
 import { Alert, AlertDescription } from '../../components/ui/Alert';
 import { buttonVariants } from '../../components/ui/Button';
 import { SkeletonCard } from '../../components/ui/Skeleton';
@@ -231,7 +239,31 @@ export default function OpportunityDetail() {
         animate={{ y: 0, opacity: 1 }}
         className="flex items-center justify-between gap-4 flex-wrap rounded-xl border border-border bg-white p-4"
       >
-        <VerificationBadge badge={opp.verificationBadge} size="lg" />
+        <div className="flex items-center gap-2 flex-wrap">
+          {opp.type === 'journal' && opp.indexing?.length > 0 ? (
+            <>
+              {INDEXING_ORDER.filter(k => opp.indexing.includes(k)).map(key => (
+                <span
+                  key={key}
+                  className={`inline-flex items-center gap-1 rounded-full ${indexingChipClass(key)} border px-3 py-1 text-xs font-semibold`}
+                  title={INDEXING_META[key].long}
+                >
+                  <BadgeCheck size={12} /> {INDEXING_META[key].long}
+                </span>
+              ))}
+              {opp.predatoryScreened && (
+                <span
+                  title="Screened against predatory-venue lists. Not a predatory journal."
+                  className="inline-flex items-center gap-1 rounded-full bg-success/10 text-success border border-success/30 px-3 py-1 text-xs font-semibold"
+                >
+                  <ShieldCheck size={12} /> Not predatory
+                </span>
+              )}
+            </>
+          ) : (
+            <VerificationBadge badge={opp.verificationBadge} size="lg" />
+          )}
+        </div>
         <div className={`inline-flex items-center gap-1.5 text-sm font-bold ${deadlineColor}`}>
           <CalendarClock size={15} />
           {formatDate(opp.deadline)} · {deadlineLabel}
@@ -267,11 +299,13 @@ export default function OpportunityDetail() {
           {opp.location && (
             <InfoRow icon={<MapPin size={15} />} label="Location" value={opp.location} />
           )}
-          <InfoRow
-            icon={<IndianRupee size={15} />}
-            label="Cost"
-            value={opp.cost === 0 ? 'Free' : `Rs. ${opp.cost.toLocaleString('en-IN')}`}
-          />
+          {opp.type !== 'journal' && (
+            <InfoRow
+              icon={<IndianRupee size={15} />}
+              label="Cost"
+              value={opp.cost === 0 ? 'Free' : `Rs. ${opp.cost.toLocaleString('en-IN')}`}
+            />
+          )}
           <InfoRow
             icon={<CalendarClock size={15} />}
             label="Deadline"
@@ -282,6 +316,40 @@ export default function OpportunityDetail() {
           )}
         </div>
       </section>
+
+      {/* Journal APC / OA — surfaced separately from event "cost" because
+          the semantics are totally different: APC is what the author pays
+          the publisher to publish, not a registration fee. */}
+      {opp.type === 'journal' && opp.apc && (
+        <section className="rounded-xl border border-border bg-white p-5 sm:p-6">
+          <h2 className="text-xs font-bold uppercase tracking-widest text-text-muted mb-3 inline-flex items-center gap-2">
+            <BookOpen size={13} /> Publishing model
+          </h2>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-0 divide-y sm:divide-y-0 divide-border">
+            <InfoRow
+              icon={<Sparkles size={15} />}
+              label="Open access"
+              value={OA_TYPE_LABEL[opp.apc.oaType || 'none']}
+            />
+            <InfoRow
+              icon={<IndianRupee size={15} />}
+              label="Article Processing Charge (APC)"
+              value={
+                opp.apc.amount == null || opp.apc.amount === 0
+                  ? 'None'
+                  : `${opp.apc.currency || 'INR'} ${Number(opp.apc.amount).toLocaleString('en-IN')}`
+              }
+            />
+            {opp.apc.waiverAvailable && (
+              <InfoRow
+                icon={<BadgeCheck size={15} />}
+                label="Waiver"
+                value="Author-side waiver may be available on request"
+              />
+            )}
+          </div>
+        </section>
+      )}
 
       {/* UGC-CARE verification note */}
       {opp.verificationBadge === 'ugc_care_verified' && opp.lastVerifiedAgainstUgcCareOn && (
