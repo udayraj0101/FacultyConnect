@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { authenticate } from '../middleware/auth.middleware.js';
+import { requireRole } from '../middleware/requireRole.js';
 import { validateBody, validateParams, objectIdParamSchema } from '../middleware/validate.js';
 import {
   updateFacultySchema,
@@ -55,7 +56,13 @@ router.post('/me/import/scopus', importScopusHandler);
 router.post('/me/import/scholar-csv', importScholarCsvHandler);
 
 router.get('/me/cv/export', exportCvHandler);
-router.get('/me/college-overview', collegeOverviewHandler);
+// CA-02: institutional aggregates are console content, not faculty-facing.
+// Plain Faculty tokens got the same admin stats until we added this gate.
+router.get(
+  '/me/college-overview',
+  requireRole('CollegeAdmin', 'PlatformAdmin'),
+  collegeOverviewHandler,
+);
 
 // UGC 2018 CAS Research Score (Wave 12). GET auto-computes from stored
 // profile data + saved manual counters. PATCH persists a partial update
