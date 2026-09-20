@@ -123,9 +123,14 @@ function ConversationView({ threadId, thread, viewerId, onBack, onSent }) {
   const [error, setError] = useState('');
   const [draft, setDraft] = useState('');
   const [sending, setSending] = useState(false);
+  // Server-populated "other participant" — used when the thread is
+  // opened directly by URL (?thread=<id>) before the sidebar list has
+  // loaded, e.g. clicking Message on a My-Network card and landing here
+  // before ever sending anything.
+  const [otherFromServer, setOtherFromServer] = useState(null);
   const bottomRef = useRef(null);
 
-  const other = thread?.other;
+  const other = otherFromServer || thread?.other;
   const otherId = other?.id;
 
   const scrollToBottom = () => {
@@ -141,6 +146,7 @@ function ConversationView({ threadId, thread, viewerId, onBack, onSent }) {
     try {
       const result = await listMessages(threadId);
       setMessages(result.messages || []);
+      if (result.other) setOtherFromServer(result.other);
       if (!silent) scrollToBottom();
     } catch (err) {
       setError(err.response?.data?.error?.message || 'Failed to load messages');
@@ -344,7 +350,12 @@ export default function Messages() {
 
       {loading && <SkeletonList count={3} cardLines={2} />}
 
-      {!loading && threads.length === 0 && (
+      {/* Empty state: no threads AND no thread id in the URL. When the
+          URL carries ?thread=<id> we always fall through to the split
+          view so a freshly-opened conversation (thread exists on the
+          server but hasn't been used yet, so listMyThreads filters it)
+          still renders correctly. */}
+      {!loading && threads.length === 0 && !activeThreadId && (
         <EmptyState
           icon={<MessageSquare size={20} />}
           title="No conversations yet"
@@ -357,17 +368,24 @@ export default function Messages() {
         />
       )}
 
-      {!loading && threads.length > 0 && (
+      {!loading && (threads.length > 0 || activeThreadId) && (
         <div className="grid gap-4 lg:grid-cols-[320px_1fr]">
           <div className={`space-y-2 ${activeThreadId ? 'hidden lg:block' : ''}`}>
-            {threads.map(t => (
-              <ThreadListItem
-                key={t.id}
-                thread={t}
-                active={t.id === activeThreadId}
-                onOpen={openThread}
-              />
-            ))}
+            {threads.length === 0 ? (
+              <div className="text-xs text-text-muted italic p-3 rounded-lg border border-dashed border-border">
+                No prior conversations. Send your first message on the right
+                to start this one.
+              </div>
+            ) : (
+              threads.map(t => (
+                <ThreadListItem
+                  key={t.id}
+                  thread={t}
+                  active={t.id === activeThreadId}
+                  onOpen={openThread}
+                />
+              ))
+            )}
           </div>
           <div className={activeThreadId ? '' : 'hidden lg:flex lg:items-center lg:justify-center'}>
             {activeThreadId ? (

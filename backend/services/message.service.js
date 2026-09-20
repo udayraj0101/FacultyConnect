@@ -157,7 +157,7 @@ export async function listMessages({ facultyId, threadId, before, limit }) {
   const thread = await MessageThread.findOne({
     _id: threadId,
     participants: facultyId,
-  });
+  }).populate('participants', 'name designation department institutionId');
   if (!thread) {
     const err = new Error('Thread not found');
     err.code = 'THREAD_NOT_FOUND';
@@ -167,10 +167,25 @@ export async function listMessages({ facultyId, threadId, before, limit }) {
   const query = { threadId };
   if (before) query.createdAt = { $lt: before };
   const msgs = await Message.find(query).sort({ createdAt: -1 }).limit(limit);
-  // Return oldest-first for the client's default rendering order.
+  // Resolve the "other" participant here so the client can render the
+  // conversation header the moment it opens a thread by URL, even before
+  // the thread has appeared in listMyThreads (which filters out empty
+  // threads to avoid noise for the recipient).
+  const viewerStr = facultyId.toString();
+  const other = (thread.participants || []).find(
+    p => p._id.toString() !== viewerStr,
+  );
   return {
     messages: msgs.reverse().map(m => m.toPublicJSON()),
     thread: thread.toPublicJSON(facultyId),
+    other: other
+      ? {
+          id: other._id.toString(),
+          name: other.name,
+          designation: other.designation,
+          department: other.department || '',
+        }
+      : null,
   };
 }
 
