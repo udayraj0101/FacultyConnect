@@ -18,6 +18,7 @@ import ScopusEnrichmentCard from '../components/profile/ScopusEnrichmentCard';
 import PublicationsCard from '../components/profile/PublicationsCard';
 import DirectoryVisibilityCard from '../components/profile/DirectoryVisibilityCard';
 import PublicProfileCard from '../components/profile/PublicProfileCard';
+import OpenToCard from '../components/profile/OpenToCard';
 import { useProfile } from '../hooks/useProfile';
 import { usePublications } from '../hooks/usePublications';
 
@@ -310,6 +311,11 @@ export default function FacultyProfile() {
         <DirectoryVisibilityCard
           directoryVisible={faculty.directoryVisible}
           onToggle={profile.toggleVisibility}
+          onError={setError}
+        />
+        <OpenToCard
+          openTo={faculty.openTo}
+          onSave={profile.updateOpenTo}
           onError={setError}
         />
         <PublicProfileCard

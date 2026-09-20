@@ -4,6 +4,10 @@ const DESIGNATIONS = ['Assistant', 'Associate', 'Professor', 'Guest', 'Research'
 const VERIFICATION_STATUSES = ['pending', 'verified', 'rejected'];
 const ROLES = ['Faculty', 'CollegeAdmin', 'OpportunityOrganizer', 'PlatformAdmin'];
 const GRANT_ROLES = ['PI', 'Co-PI', 'Investigator', 'Consultant'];
+// Directory-searchable intent flags. Faculty declare what they're open
+// to receiving requests for, so the Directory becomes searchable by
+// outcome ("who wants a Co-PI") not just domain overlap.
+const OPEN_TO_OPTIONS = ['co_author', 'phd_student', 'co_pi', 'reviewer'];
 
 const employmentSchema = new mongoose.Schema(
   {
@@ -115,6 +119,15 @@ const facultySchema = new mongoose.Schema(
     awards: { type: [awardSchema], default: [] },
     grantsReceived: { type: [grantSchema], default: [] },
     externalLinks: { type: externalLinksSchema, default: () => ({}) },
+    // Multi-select intent flags — see OPEN_TO_OPTIONS. Any-match filter
+    // on directory search (open_to=co_pi returns everyone open to Co-PI
+    // requests, regardless of what else they're open to). Indexed for
+    // the intent-based lookups the Directory now supports.
+    openTo: {
+      type: [{ type: String, enum: OPEN_TO_OPTIONS }],
+      default: [],
+      index: true,
+    },
   },
   { timestamps: true },
 );
@@ -151,6 +164,7 @@ facultySchema.methods.toDirectoryJSON = function toDirectoryJSON() {
     i10Index: this.i10Index,
     institution: populatedInst,
     publicHandle: this.publicHandle || null,
+    openTo: this.openTo || [],
     employmentHistory: (this.employmentHistory || []).map(serializeSubdoc),
     education: (this.education || []).map(serializeSubdoc),
     awards: (this.awards || []).map(serializeSubdoc),
@@ -200,6 +214,7 @@ facultySchema.methods.toPublicJSON = function toPublicJSON() {
     directoryVisible: this.directoryVisible,
     publicProfileEnabled: this.publicProfileEnabled,
     publicHandle: this.publicHandle || null,
+    openTo: this.openTo || [],
     awaitingOnboarding: !this.passwordHash,
     invitedAt: this.invitedAt,
     verificationStatus: this.verificationStatus,
@@ -221,4 +236,4 @@ facultySchema.methods.toPublicJSON = function toPublicJSON() {
 };
 
 export const Faculty = mongoose.model('Faculty', facultySchema);
-export { DESIGNATIONS, VERIFICATION_STATUSES, ROLES, GRANT_ROLES };
+export { DESIGNATIONS, VERIFICATION_STATUSES, ROLES, GRANT_ROLES, OPEN_TO_OPTIONS };

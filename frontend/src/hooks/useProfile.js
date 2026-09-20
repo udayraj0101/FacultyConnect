@@ -60,6 +60,7 @@ export function useProfile() {
   const updateAwards = list => patch({ awards: list });
   const updateGrants = list => patch({ grantsReceived: list });
   const updateLinks = links => patch({ externalLinks: links });
+  const updateOpenTo = openTo => patch({ openTo });
 
   const toggleVisibility = async next => {
     const updated = await setDirectoryVisibility(next);
@@ -98,6 +99,7 @@ export function useProfile() {
     updateAwards,
     updateGrants,
     updateLinks,
+    updateOpenTo,
     toggleVisibility,
     togglePublicProfile,
     connectOrcid,

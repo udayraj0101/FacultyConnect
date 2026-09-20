@@ -22,6 +22,7 @@ import {
   Award,
   Landmark,
   Users,
+  Handshake,
 } from 'lucide-react';
 import {
   INDEXING_META,
@@ -424,6 +425,41 @@ export default function OpportunityDetail() {
               . Re-verification runs nightly.
             </div>
           </div>
+        </div>
+      )}
+
+      {/* Co-PI finder — grants only. Deep-links to Directory pre-filtered
+          by the grant's first domain tag + open_to=co_pi + excludes the
+          viewer's own institution (different-institution collaborators
+          are the whole point of a Co-PI hunt). */}
+      {opp.type === 'grant' && (
+        <div className="rounded-xl border border-primary/20 bg-primary/5 p-5 sm:p-6 flex items-start justify-between gap-4 flex-wrap">
+          <div className="flex items-start gap-3 min-w-0">
+            <div className="w-10 h-10 rounded-lg bg-primary/10 text-primary flex items-center justify-center shrink-0">
+              <Handshake size={18} />
+            </div>
+            <div className="min-w-0">
+              <div className="font-bold text-secondary">Need a co-applicant?</div>
+              <p className="text-xs text-text-muted mt-0.5 max-w-xl leading-relaxed">
+                Open the Directory pre-filtered by this grant's domain and by faculty who
+                declared they're open to Co-PI invitations. Same-institution peers are
+                hidden by default.
+              </p>
+            </div>
+          </div>
+          <Link
+            to={{
+              pathname: '/directory',
+              search: `?open_to=co_pi&exclude_same_institution=true${
+                opp.domainTags?.[0]
+                  ? `&domain=${encodeURIComponent(opp.domainTags[0])}`
+                  : ''
+              }`,
+            }}
+            className={buttonVariants({ size: 'sm' })}
+          >
+            <Handshake size={13} className="mr-1.5" /> Find a Co-PI
+          </Link>
         </div>
       )}
 

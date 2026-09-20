@@ -21,7 +21,17 @@ const SORT_MAP = {
 };
 
 export async function search(filters, viewerId) {
-  const { q, domain, designation, institutionId, sort, page, limit } = filters;
+  const {
+    q,
+    domain,
+    designation,
+    institutionId,
+    open_to: openTo,
+    exclude_same_institution: excludeSameInstitution,
+    sort,
+    page,
+    limit,
+  } = filters;
 
   const query = {
     directoryVisible: true,
@@ -31,6 +41,21 @@ export async function search(filters, viewerId) {
   if (viewerId) query._id = { $ne: viewerId };
   if (designation) query.designation = designation;
   if (institutionId) query.institutionId = institutionId;
+  // Any-match against the multi-select openTo intent flags: "show me
+  // faculty open to Co-PI OR PhD-student requests" returns everyone who
+  // ticked at least one of the boxes.
+  if (openTo?.length) query.openTo = { $in: openTo };
+  // Co-PI finder: hide same-institution peers when the deep-link asks
+  // for it. Needs a viewer to know what "same institution" means; the
+  // service silently ignores when there's no viewer.
+  if (excludeSameInstitution && viewerId) {
+    const viewer = await Faculty.findById(viewerId).select('institutionId').lean();
+    if (viewer?.institutionId) {
+      query.institutionId = query.institutionId
+        ? query.institutionId
+        : { $ne: viewer.institutionId };
+    }
+  }
   if (domain) {
     query.domainTags = new RegExp(`^${escapeRegex(domain)}$`, 'i');
   }

@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
   Search,
@@ -10,6 +10,7 @@ import {
   Building2,
   SlidersHorizontal,
   ChevronDown,
+  Handshake,
 } from 'lucide-react';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
@@ -21,6 +22,7 @@ import SectionCard from '../components/dashboard/SectionCard';
 import { searchDirectory } from '../services/directory.service';
 import { listInstitutions } from '../services/institution.service';
 import { getMe } from '../services/faculty.service';
+import { OPEN_TO_META, OPEN_TO_ORDER } from '../lib/openTo';
 
 const DESIGNATION_OPTIONS = [
   { value: '', label: 'Any' },
@@ -105,6 +107,25 @@ function ProfileCard({ profile, index }) {
           </div>
         )}
 
+        {profile.openTo?.length > 0 && (
+          <div className="flex flex-wrap gap-1 items-center">
+            <Handshake size={11} className="text-primary shrink-0" />
+            {profile.openTo.map(key => {
+              const meta = OPEN_TO_META[key];
+              if (!meta) return null;
+              return (
+                <span
+                  key={key}
+                  title={meta.long}
+                  className="inline-flex items-center rounded-full bg-success/10 text-success text-[10px] px-2 py-0.5 border border-success/20 font-semibold"
+                >
+                  {meta.short}
+                </span>
+              );
+            })}
+          </div>
+        )}
+
         <div className="grid grid-cols-3 gap-2 text-center border-t border-border pt-3">
           <div>
             <div className="text-sm font-bold text-secondary tabular-nums">
@@ -133,15 +154,26 @@ function ProfileCard({ profile, index }) {
 }
 
 export default function Directory() {
+  // Deep-link support: the Co-PI finder on grant detail pushes
+  // ?open_to=co_pi&domain=<tag>&exclude_same_institution=true here.
+  // We prime the filter state from the URL on first load so a shared
+  // link opens directly filtered.
+  const [searchParams] = useSearchParams();
+  const initialOpenTo = (searchParams.get('open_to') || '')
+    .split(',')
+    .map(s => s.trim())
+    .filter(Boolean);
   const [filters, setFilters] = useState({
     q: '',
-    domain: '',
+    domain: searchParams.get('domain') || '',
     designation: '',
     institutionId: '',
+    open_to: initialOpenTo,
+    exclude_same_institution: searchParams.get('exclude_same_institution') === 'true',
     sort: 'relevance',
   });
   const [pendingQuery, setPendingQuery] = useState('');
-  const [pendingDomain, setPendingDomain] = useState('');
+  const [pendingDomain, setPendingDomain] = useState(searchParams.get('domain') || '');
   const [data, setData] = useState({ results: [], total: 0 });
   const [institutions, setInstitutions] = useState([]);
   const [myTags, setMyTags] = useState([]);
@@ -203,7 +235,15 @@ export default function Directory() {
   };
 
   const clearFilters = () => {
-    setFilters({ q: '', domain: '', designation: '', institutionId: '', sort: 'relevance' });
+    setFilters({
+      q: '',
+      domain: '',
+      designation: '',
+      institutionId: '',
+      open_to: [],
+      exclude_same_institution: false,
+      sort: 'relevance',
+    });
     setPendingQuery('');
     setPendingDomain('');
   };
@@ -214,8 +254,20 @@ export default function Directory() {
     if (filters.domain) n += 1;
     if (filters.designation) n += 1;
     if (filters.institutionId) n += 1;
+    if (filters.open_to?.length) n += filters.open_to.length;
+    if (filters.exclude_same_institution) n += 1;
     return n;
   }, [filters]);
+
+  const toggleOpenTo = key => {
+    setFilters(prev => {
+      const current = prev.open_to || [];
+      const next = current.includes(key)
+        ? current.filter(k => k !== key)
+        : [...current, key];
+      return { ...prev, open_to: next };
+    });
+  };
 
   return (
     <div className="max-w-7xl mx-auto p-4 sm:p-6 space-y-6">
@@ -387,6 +439,58 @@ export default function Directory() {
                   ))}
                 </select>
               </div>
+
+              <div>
+                <div className="text-xs font-semibold uppercase tracking-wide text-text-muted mb-2 inline-flex items-center gap-1.5">
+                  <Handshake size={11} /> Open to
+                </div>
+                <div className="space-y-1">
+                  {OPEN_TO_ORDER.map(key => {
+                    const checked = filters.open_to?.includes(key);
+                    return (
+                      <label
+                        key={key}
+                        className="flex items-center gap-2 text-sm cursor-pointer py-0.5"
+                        title={OPEN_TO_META[key].hint}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={() => toggleOpenTo(key)}
+                          className="accent-primary"
+                        />
+                        {OPEN_TO_META[key].long}
+                      </label>
+                    );
+                  })}
+                </div>
+                <p className="text-[10px] text-text-muted mt-1.5">
+                  Faculty who declared they welcome these requests.
+                </p>
+              </div>
+
+              <label className="flex items-start gap-2 text-sm cursor-pointer py-0.5 border-t border-border pt-4">
+                <input
+                  type="checkbox"
+                  checked={filters.exclude_same_institution}
+                  onChange={e =>
+                    setFilters(prev => ({
+                      ...prev,
+                      exclude_same_institution: e.target.checked,
+                    }))
+                  }
+                  className="mt-0.5 accent-primary"
+                />
+                <span>
+                  <span className="font-semibold text-text-light block">
+                    Different institution only
+                  </span>
+                  <span className="text-[11px] text-text-muted leading-relaxed">
+                    Hide peers from your own institution — useful when hunting Co-PIs for
+                    multi-institution grants.
+                  </span>
+                </span>
+              </label>
 
               <Button type="submit" size="sm" className="w-full">
                 Apply search

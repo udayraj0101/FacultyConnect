@@ -78,6 +78,10 @@ export const updateFacultySchema = z
     awards: z.array(awardItem).max(30).optional(),
     grantsReceived: z.array(grantItem).max(30).optional(),
     externalLinks: externalLinksSchema.optional(),
+    openTo: z
+      .array(z.enum(['co_author', 'phd_student', 'co_pi', 'reviewer']))
+      .max(4)
+      .optional(),
   })
   .strict();
 
