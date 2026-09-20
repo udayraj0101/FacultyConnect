@@ -68,7 +68,8 @@ function normalizeRows(rows) {
   return { header: rows[0], invites };
 }
 
-function StatusBadge({ status }) {
+function StatusBadge({ row }) {
+  const status = row.status;
   const map = {
     invited: { cls: 'bg-success/10 text-success border-success/30', label: 'Invited' },
     already_member: { cls: 'bg-primary/10 text-primary border-primary/30', label: 'Already member' },
@@ -76,7 +77,13 @@ function StatusBadge({ status }) {
     skipped: { cls: 'bg-muted text-text-muted border-border', label: 'Skipped' },
     error: { cls: 'bg-danger/10 text-danger border-danger/30', label: 'Error' },
   };
-  const meta = map[status] || map.skipped;
+  // Highlight domain-mismatch skips distinctly from generic skips —
+  // admins usually want to review those specifically.
+  const isDomainMismatch =
+    status === 'skipped' && row.reason === 'domain_mismatch';
+  const meta = isDomainMismatch
+    ? { cls: 'bg-yellow-100 text-yellow-700 border-yellow-300', label: 'Domain mismatch' }
+    : map[status] || map.skipped;
   return (
     <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider ${meta.cls}`}>
       {meta.label}
@@ -91,23 +98,28 @@ export default function InviteFacultyForm({ onInvited }) {
   const [single, setSingle] = useState({ name: '', email: '' });
   const [singleSubmitting, setSingleSubmitting] = useState(false);
   const [singleError, setSingleError] = useState('');
+  // When the backend rejects with DOMAIN_MISMATCH we hold the meta here
+  // and surface a confirm-override prompt. Cleared on next successful
+  // send or on manual dismissal.
+  const [domainWarning, setDomainWarning] = useState(null);
 
   // CSV import
   const [csvSubmitting, setCsvSubmitting] = useState(false);
   const [csvError, setCsvError] = useState('');
   const [csvResult, setCsvResult] = useState(null);
   const [csvPreview, setCsvPreview] = useState(null);
+  const [bulkAllowMismatch, setBulkAllowMismatch] = useState(false);
 
-  const submitSingle = async e => {
-    e.preventDefault();
-    setSingleError('');
-    if (!single.email) {
-      setSingleError('Email is required');
-      return;
-    }
+  // Extracted so the "Send anyway" button on the domain-mismatch prompt
+  // can re-issue the exact same call with the override flag set.
+  const sendInvite = async ({ allowDomainMismatch }) => {
     setSingleSubmitting(true);
     try {
-      const r = await inviteFaculty({ name: single.name, email: single.email });
+      const r = await inviteFaculty({
+        name: single.name,
+        email: single.email,
+        allowDomainMismatch,
+      });
       toast({
         title:
           r.status === 'invited'
@@ -119,17 +131,35 @@ export default function InviteFacultyForm({ onInvited }) {
           r.status === 'exists_elsewhere'
             ? 'This email is registered at another institution.'
             : r.status === 'invited'
-              ? `An onboarding link was emailed to ${single.email}.`
+              ? `An onboarding link was emailed to ${single.email}. They stay pending until they claim it.`
               : `${single.email} is already an active member.`,
         variant: r.status === 'exists_elsewhere' ? 'error' : 'success',
       });
       setSingle({ name: '', email: '' });
+      setDomainWarning(null);
       onInvited?.();
     } catch (err) {
-      setSingleError(err.response?.data?.error?.message || 'Could not send invite');
+      const errPayload = err.response?.data?.error;
+      if (errPayload?.code === 'DOMAIN_MISMATCH' && errPayload.meta) {
+        // Show the confirm-override prompt rather than a raw error banner.
+        setDomainWarning(errPayload.meta);
+      } else {
+        setSingleError(errPayload?.message || 'Could not send invite');
+      }
     } finally {
       setSingleSubmitting(false);
     }
+  };
+
+  const submitSingle = async e => {
+    e.preventDefault();
+    setSingleError('');
+    setDomainWarning(null);
+    if (!single.email) {
+      setSingleError('Email is required');
+      return;
+    }
+    await sendInvite({ allowDomainMismatch: false });
   };
 
   const onCsvFile = async e => {
@@ -162,14 +192,22 @@ export default function InviteFacultyForm({ onInvited }) {
     setCsvSubmitting(true);
     setCsvError('');
     try {
-      const r = await bulkInviteFaculty(csvPreview);
+      const r = await bulkInviteFaculty(csvPreview, {
+        allowDomainMismatch: bulkAllowMismatch,
+      });
       setCsvResult(r);
+      const mismatchNote = r.summary.domainMismatched
+        ? ` · ${r.summary.domainMismatched} skipped for domain mismatch`
+        : '';
       toast({
         title: 'Bulk invite complete',
-        description: `Invited ${r.summary.invited} of ${r.summary.total} · ${r.summary.alreadyMember} already members · ${r.summary.errors} errors`,
+        description:
+          `Invited ${r.summary.invited} of ${r.summary.total} · ${r.summary.alreadyMember} already members · ${r.summary.errors} errors` +
+          mismatchNote,
         variant: r.summary.errors > 0 ? 'error' : 'success',
       });
       setCsvPreview(null);
+      setBulkAllowMismatch(false);
       onInvited?.();
     } catch (err) {
       setCsvError(err.response?.data?.error?.message || 'Bulk invite failed');
@@ -190,6 +228,48 @@ export default function InviteFacultyForm({ onInvited }) {
               <AlertCircle className="h-4 w-4" />
               <AlertDescription>{singleError}</AlertDescription>
             </Alert>
+          )}
+          {domainWarning && (
+            <div className="rounded-md border border-yellow-300 bg-yellow-50 p-3 space-y-3">
+              <div className="flex items-start gap-2 text-sm text-yellow-900">
+                <AlertCircle size={16} className="mt-0.5 shrink-0" />
+                <div>
+                  <div className="font-semibold">Domain mismatch</div>
+                  <div className="text-xs mt-0.5 leading-relaxed">
+                    The invited email domain (
+                    <span className="font-mono font-semibold">
+                      {domainWarning.invitedDomain}
+                    </span>
+                    ) doesn't match your institution's domain (
+                    <span className="font-mono font-semibold">
+                      {domainWarning.institutionDomain}
+                    </span>
+                    ). This is often a typo. If the invitee genuinely uses a
+                    personal email, confirm below to send anyway — they'll stay
+                    pending until they claim the invite.
+                  </div>
+                </div>
+              </div>
+              <div className="flex gap-2 justify-end">
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setDomainWarning(null)}
+                  disabled={singleSubmitting}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  onClick={() => sendInvite({ allowDomainMismatch: true })}
+                  disabled={singleSubmitting}
+                >
+                  {singleSubmitting ? 'Sending…' : 'Send anyway'}
+                </Button>
+              </div>
+            </div>
           )}
           <div className="grid gap-3 sm:grid-cols-2">
             <div className="space-y-1.5">
@@ -274,7 +354,17 @@ Dr. A. Menon,amenon@iitm.ac.in`}
                   <span className="font-semibold">{csvPreview.length}</span> row
                   {csvPreview.length === 1 ? '' : 's'} ready to invite
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-3 flex-wrap">
+                  <label className="inline-flex items-center gap-1.5 text-xs text-text-muted cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={bulkAllowMismatch}
+                      onChange={e => setBulkAllowMismatch(e.target.checked)}
+                      disabled={csvSubmitting}
+                      className="accent-primary"
+                    />
+                    Allow non-institutional domains
+                  </label>
                   <Button
                     variant="outline"
                     size="sm"
@@ -366,7 +456,7 @@ Dr. A. Menon,amenon@iitm.ac.in`}
                       <tr key={i}>
                         <td className="px-3 py-1.5 font-mono">{r.email || '—'}</td>
                         <td className="px-3 py-1.5">
-                          <StatusBadge status={r.status} />
+                          <StatusBadge row={r} />
                         </td>
                         <td className="px-3 py-1.5 text-text-muted">
                           {r.message || r.reason || ''}

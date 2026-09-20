@@ -17,13 +17,30 @@ export async function getInstitution(id) {
 
 // ---------- College Admin faculty roster ----------
 
-export async function inviteFaculty({ email, name }) {
-  const { data } = await api.post('/institutions/faculty/invite', { email, name });
+export async function inviteFaculty({ email, name, allowDomainMismatch = false }) {
+  const { data } = await api.post('/institutions/faculty/invite', {
+    email,
+    name,
+    allowDomainMismatch,
+  });
   return data;
 }
 
-export async function bulkInviteFaculty(invites) {
-  const { data } = await api.post('/institutions/faculty/bulk-invite', { invites });
+export async function bulkInviteFaculty(invites, { allowDomainMismatch = false } = {}) {
+  const { data } = await api.post('/institutions/faculty/bulk-invite', {
+    invites,
+    allowDomainMismatch,
+  });
+  return data;
+}
+
+// CA-01 offboard endpoint. `purge=true` hard-deletes an unclaimed
+// invite; omitting purge (or purge=false) detaches a claimed roster
+// member without deleting their account.
+export async function offboardFaculty(id, { purge = false } = {}) {
+  const { data } = await api.delete(`/institutions/faculty/${id}`, {
+    data: { purge },
+  });
   return data;
 }
 

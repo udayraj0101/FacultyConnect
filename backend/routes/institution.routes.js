@@ -10,6 +10,7 @@ import {
   pendingFacultyHandler,
   approveHandler,
   rejectHandler,
+  offboardHandler,
 } from '../controllers/institution-admin.controller.js';
 
 const router = Router();
@@ -59,6 +60,15 @@ router.patch(
   requireRole('CollegeAdmin'),
   validateParams(objectIdParamSchema),
   rejectHandler,
+);
+// CA-01 offboarding — revoke an unclaimed invite (body.purge=true) or
+// detach a claimed roster member (body.purge omitted / false).
+router.delete(
+  '/faculty/:id',
+  authenticate,
+  requireRole('CollegeAdmin'),
+  validateParams(objectIdParamSchema),
+  offboardHandler,
 );
 
 export default router;

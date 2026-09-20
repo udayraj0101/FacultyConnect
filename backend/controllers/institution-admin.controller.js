@@ -5,6 +5,7 @@ import {
   bulkInviteFacultySchema,
   rejectFacultySchema,
   listFacultyQuerySchema,
+  offboardFacultySchema,
 } from '../schemas/institution-admin.schema.js';
 
 function validationError(res, parsed) {
@@ -21,8 +22,14 @@ export async function inviteHandler(req, res) {
     const result = await inviteService.inviteOneByActor(req.user.id, parsed.data);
     return res.status(201).json(result);
   } catch (error) {
+    // Surface DOMAIN_MISMATCH metadata so the frontend can render the
+    // right override prompt (invited vs institution domain).
     return res.status(error.status || 500).json({
-      error: { code: error.code || 'INVITE_FAILED', message: error.message },
+      error: {
+        code: error.code || 'INVITE_FAILED',
+        message: error.message,
+        ...(error.meta ? { meta: error.meta } : {}),
+      },
     });
   }
 }
@@ -31,11 +38,32 @@ export async function bulkInviteHandler(req, res) {
   const parsed = bulkInviteFacultySchema.safeParse(req.body);
   if (!parsed.success) return validationError(res, parsed);
   try {
-    const result = await inviteService.inviteBulkByActor(req.user.id, parsed.data.invites);
+    const result = await inviteService.inviteBulkByActor(
+      req.user.id,
+      parsed.data.invites,
+      { allowDomainMismatch: parsed.data.allowDomainMismatch },
+    );
     return res.status(200).json(result);
   } catch (error) {
     return res.status(error.status || 500).json({
       error: { code: error.code || 'BULK_INVITE_FAILED', message: error.message },
+    });
+  }
+}
+
+export async function offboardHandler(req, res) {
+  const parsed = offboardFacultySchema.safeParse(req.body || {});
+  if (!parsed.success) return validationError(res, parsed);
+  try {
+    const result = await inviteService.offboardFacultyByActor(
+      req.user.id,
+      req.params.id,
+      { purge: parsed.data.purge },
+    );
+    return res.status(200).json(result);
+  } catch (error) {
+    return res.status(error.status || 500).json({
+      error: { code: error.code || 'OFFBOARD_FAILED', message: error.message },
     });
   }
 }

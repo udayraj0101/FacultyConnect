@@ -10,6 +10,8 @@ import {
   Loader2,
   ThumbsUp,
   Ban,
+  Trash2,
+  UserMinus,
 } from 'lucide-react';
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
@@ -21,6 +23,7 @@ import {
   listFacultyRoster,
   approveFaculty,
   rejectFaculty,
+  offboardFaculty,
 } from '../../services/institution.service';
 
 const STATUS_TABS = [
@@ -66,9 +69,13 @@ function StatusPill({ status, awaitingOnboarding }) {
   );
 }
 
-function FacultyRow({ item, onApprove, onReject, busy }) {
+function FacultyRow({ item, onApprove, onReject, onOffboard, busy }) {
   const [showReject, setShowReject] = useState(false);
   const [reason, setReason] = useState('');
+  // CA-01 offboard confirm state. Two flavours:
+  //  - 'revoke'  → unclaimed invite (awaitingOnboarding); purge=true
+  //  - 'remove'  → claimed member; purge=false, detach only
+  const [confirmOffboard, setConfirmOffboard] = useState(null);
   const initials = (item.name || item.email || 'F')
     .split(/\s+/)
     .slice(0, 2)
@@ -135,8 +142,81 @@ function FacultyRow({ item, onApprove, onReject, busy }) {
               </Button>
             </div>
           )}
+          {/* Offboard action — revoke unclaimed invite (hard delete) or
+              remove a claimed roster member (detach). Distinct labels so
+              the admin knows whether they're deleting a placeholder or
+              detaching a real account. */}
+          {item.awaitingOnboarding ? (
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => setConfirmOffboard('revoke')}
+              disabled={busy}
+              className="border-danger/30 text-danger hover:bg-danger/5"
+              title="Cancel this invite. The placeholder account will be deleted since no password was ever set."
+            >
+              <Trash2 size={12} className="mr-1" />
+              Revoke invite
+            </Button>
+          ) : (
+            !isPending && (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => setConfirmOffboard('remove')}
+                disabled={busy}
+                className="border-danger/30 text-danger hover:bg-danger/5"
+                title="Remove from institution roster. The account is preserved for the faculty's own history."
+              >
+                <UserMinus size={12} className="mr-1" />
+                Offboard
+              </Button>
+            )
+          )}
         </div>
       </div>
+
+      {confirmOffboard && (
+        <div className="mt-3 pt-3 border-t border-border space-y-2">
+          <div className="text-xs text-text-light">
+            {confirmOffboard === 'revoke' ? (
+              <>
+                Revoke the invite for{' '}
+                <span className="font-mono font-semibold">{item.email}</span>? The
+                placeholder account will be deleted permanently — they can be
+                re-invited later.
+              </>
+            ) : (
+              <>
+                Remove <span className="font-semibold">{item.name || item.email}</span>{' '}
+                from your roster? The account stays intact but is no longer
+                linked to your institution.
+              </>
+            )}
+          </div>
+          <div className="flex gap-2 justify-end">
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => setConfirmOffboard(null)}
+              disabled={busy}
+            >
+              Cancel
+            </Button>
+            <Button
+              size="sm"
+              onClick={() => {
+                onOffboard(item.id, { purge: confirmOffboard === 'revoke' });
+                setConfirmOffboard(null);
+              }}
+              disabled={busy}
+              className="bg-danger hover:bg-danger/90 text-white"
+            >
+              {confirmOffboard === 'revoke' ? 'Revoke invite' : 'Offboard'}
+            </Button>
+          </div>
+        </div>
+      )}
 
       {isPending && showReject && (
         <div className="mt-3 pt-3 border-t border-border space-y-2">
@@ -269,6 +349,29 @@ export default function FacultyRoster() {
     }
   };
 
+  const doOffboard = async (id, { purge }) => {
+    setBusy(true);
+    try {
+      const r = await offboardFaculty(id, { purge });
+      toast({
+        title: r.purged ? 'Invite revoked' : 'Removed from roster',
+        description: r.purged
+          ? 'The placeholder account was deleted.'
+          : 'Their account is preserved but is no longer linked to your institution.',
+        variant: 'success',
+      });
+      refresh();
+    } catch (err) {
+      toast({
+        title: 'Could not offboard',
+        description: err.response?.data?.error?.message || 'Please try again',
+        variant: 'error',
+      });
+    } finally {
+      setBusy(false);
+    }
+  };
+
   return (
     <SectionCard
       title="Faculty roster"
@@ -364,6 +467,7 @@ export default function FacultyRoster() {
                 item={item}
                 onApprove={doApprove}
                 onReject={doReject}
+                onOffboard={doOffboard}
                 busy={busy}
               />
             ))}
