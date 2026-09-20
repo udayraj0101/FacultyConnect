@@ -141,6 +141,28 @@ Sign in: ${frontendUrl()}/login
     email: null,
   },
 
+  message_received: {
+    inApp: ({ fromName, preview }) => ({
+      title: `New message from ${fromName || 'a collaborator'}`,
+      body: preview ? preview.slice(0, 200) : 'Open the message to read.',
+      link: '/messages',
+    }),
+    email: ({ fromName, preview }, recipient) => ({
+      subject: `${fromName || 'A collaborator'} sent you a message on FacultyConnect`,
+      text: `Hi ${recipient.name || 'there'},
+
+${fromName || 'A collaborator'} sent you a message on FacultyConnect:
+
+"${(preview || '').slice(0, 500)}"
+
+Reply on-platform (full history stays here):
+  ${frontendUrl()}/messages
+
+— FacultyConnect
+`,
+    }),
+  },
+
   saved_search_matches: {
     inApp: ({ searchName, count }) => ({
       title: `${count} new ${count === 1 ? 'match' : 'matches'} for "${searchName}"`,

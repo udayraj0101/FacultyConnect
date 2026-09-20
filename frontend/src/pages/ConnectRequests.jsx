@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
   Inbox,
@@ -8,12 +8,14 @@ import {
   XCircle,
   Clock,
   Mail,
+  MessageSquare,
   Building2,
   BadgeCheck,
   User2,
   Users,
   Search,
 } from 'lucide-react';
+import { openThreadWith } from '../services/message.service';
 import { Alert, AlertDescription } from '../components/ui/Alert';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
@@ -64,7 +66,7 @@ function initialsOf(name) {
     .toUpperCase();
 }
 
-function RequestCard({ request, direction, onRespond, submitting }) {
+function RequestCard({ request, direction, onRespond, submitting, onOpenMessage }) {
   const counterpart = direction === 'sent' ? request.to : request.from;
 
   return (
@@ -138,17 +140,29 @@ function RequestCard({ request, direction, onRespond, submitting }) {
       </div>
 
       {/* Contact reveal (accepted only) */}
-      {request.status === 'accepted' && counterpart?.email && (
-        <div className="flex items-center justify-between gap-3 rounded-md bg-success/5 border border-success/20 px-3 py-2">
-          <div className="text-xs text-success font-semibold">
-            Contact unlocked — continue off-platform.
+      {request.status === 'accepted' && (
+        <div className="flex items-center justify-between gap-3 rounded-md bg-success/5 border border-success/20 px-3 py-2 flex-wrap">
+          <div className="text-xs text-success font-semibold min-w-0">
+            Contact unlocked — message on-platform or continue over email.
           </div>
-          <a
-            href={`mailto:${counterpart.email}`}
-            className="inline-flex items-center gap-1 text-xs font-semibold text-text-light hover:text-primary"
-          >
-            <Mail size={12} /> {counterpart.email}
-          </a>
+          <div className="flex items-center gap-3 flex-wrap">
+            {counterpart?.id && (
+              <button
+                onClick={() => onOpenMessage?.(counterpart.id)}
+                className="inline-flex items-center gap-1 text-xs font-semibold text-primary hover:underline"
+              >
+                <MessageSquare size={12} /> Message
+              </button>
+            )}
+            {counterpart?.email && (
+              <a
+                href={`mailto:${counterpart.email}`}
+                className="inline-flex items-center gap-1 text-xs font-semibold text-text-light hover:text-primary"
+              >
+                <Mail size={12} /> {counterpart.email}
+              </a>
+            )}
+          </div>
         </div>
       )}
 
@@ -257,6 +271,7 @@ function ConnectionCard({ connection }) {
 
 export default function ConnectRequests() {
   const { toast } = useToast();
+  const navigate = useNavigate();
   const [direction, setDirection] = useState('received');
   const [status, setStatus] = useState('pending');
   const [data, setData] = useState({ requests: [] });
@@ -288,6 +303,23 @@ export default function ConnectRequests() {
   useEffect(() => {
     refresh();
   }, [refresh]);
+
+  // Open the on-platform conversation with the counterpart. The service
+  // creates the thread lazily if it doesn't exist yet, so the CTA is
+  // idempotent — first click seeds the row, subsequent clicks just
+  // navigate.
+  const openMessage = async otherFacultyId => {
+    try {
+      const threadId = await openThreadWith(otherFacultyId);
+      navigate(`/messages?thread=${threadId}`);
+    } catch (err) {
+      toast({
+        title: 'Could not open conversation',
+        description: err.response?.data?.error?.message,
+        variant: 'destructive',
+      });
+    }
+  };
 
   const respond = async (id, decision) => {
     if (busy) return;
@@ -564,6 +596,7 @@ export default function ConnectRequests() {
                 direction={direction}
                 onRespond={respond}
                 submitting={busy}
+                onOpenMessage={openMessage}
               />
             ))}
           </div>

@@ -9,6 +9,7 @@ const TYPES = [
   'faculty_rejected',
   'invitation_accepted',
   'saved_search_matches',
+  'message_received',
 ];
 
 const notificationSchema = new mongoose.Schema(
