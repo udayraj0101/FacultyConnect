@@ -254,15 +254,30 @@ const CAS_COLORS = {
   accent: '#1F2937',
 };
 
+// PDFKit's flowing text calls remember `doc.x` from the last write, so a
+// table cell that ended on the right side of the page leaves the next
+// paragraph pinned to that column. Every helper below starts by
+// resetting the cursor to the left margin so headings always span the
+// full width. Same reason `casSectionHeader` and every standalone text
+// block below call this first.
+function resetToLeft(doc) {
+  doc.x = doc.page.margins.left;
+}
+
 // Sub-headings on the proforma are numbered — HR offices cross-check by
 // section number, so we keep them in the rendered PDF.
 function casSectionHeader(doc, number, title) {
+  resetToLeft(doc);
   doc.moveDown(0.6);
+  resetToLeft(doc);
   doc
     .fillColor(CAS_COLORS.ink)
     .font('Helvetica-Bold')
     .fontSize(11)
-    .text(`${number}. ${title.toUpperCase()}`, { characterSpacing: 0.6 });
+    .text(`${number}. ${title.toUpperCase()}`, {
+      characterSpacing: 0.6,
+      width: doc.page.width - doc.page.margins.left - doc.page.margins.right,
+    });
   const y = doc.y + 2;
   doc
     .moveTo(doc.page.margins.left, y)
@@ -271,11 +286,13 @@ function casSectionHeader(doc, number, title) {
     .strokeColor(CAS_COLORS.rule)
     .stroke();
   doc.moveDown(0.35);
+  resetToLeft(doc);
 }
 
 // Two-column key/value rows used across the personal-info block. Wraps
 // cleanly if the value overflows.
 function casKeyValue(doc, label, value) {
+  resetToLeft(doc);
   const startX = doc.page.margins.left;
   const totalW = doc.page.width - doc.page.margins.left - doc.page.margins.right;
   const labelW = 150;
@@ -298,6 +315,7 @@ function casKeyValue(doc, label, value) {
 // Generic table renderer: headers row + striped body rows. Auto-wraps
 // long text within a cell. Used for education, positions held, projects.
 function casTable(doc, columns, rows) {
+  resetToLeft(doc);
   if (!rows.length) {
     doc
       .fillColor(CAS_COLORS.muted)
@@ -305,6 +323,7 @@ function casTable(doc, columns, rows) {
       .fontSize(10)
       .text('(No records on file.)');
     doc.moveDown(0.3);
+    resetToLeft(doc);
     return;
   }
   const startX = doc.page.margins.left;
@@ -368,9 +387,11 @@ function casTable(doc, columns, rows) {
     y += rowH;
   }
   doc.y = y + 2;
+  resetToLeft(doc);
 }
 
 function casNumberedList(doc, items) {
+  resetToLeft(doc);
   if (!items.length) {
     doc
       .fillColor(CAS_COLORS.muted)
@@ -378,6 +399,7 @@ function casNumberedList(doc, items) {
       .fontSize(10)
       .text('(No records on file.)');
     doc.moveDown(0.3);
+    resetToLeft(doc);
     return;
   }
   const startX = doc.page.margins.left;
@@ -385,20 +407,27 @@ function casNumberedList(doc, items) {
   const indent = 22;
   let i = 1;
   for (const line of items) {
-    const y = doc.y;
-    if (y + 30 > doc.page.height - doc.page.margins.bottom) {
+    // Page-break check FIRST — addPage() resets doc.y, so capturing the
+    // top-of-row y before this check would leave the body text pinned to
+    // the previous page's near-bottom coordinate on the new page.
+    if (doc.y + 30 > doc.page.height - doc.page.margins.bottom) {
       doc.addPage();
     }
+    const y = doc.y;
     doc
       .fillColor(CAS_COLORS.muted)
       .font('Helvetica-Bold')
       .fontSize(9.5)
-      .text(`${i}.`, startX, doc.y, { width: indent - 4, continued: false });
-    doc.fillColor(CAS_COLORS.ink).font('Helvetica').fontSize(10);
-    doc.text(line, startX + indent, y, { width: totalW - indent });
+      .text(`${i}.`, startX, y, { width: indent - 4, continued: false });
+    doc
+      .fillColor(CAS_COLORS.ink)
+      .font('Helvetica')
+      .fontSize(10)
+      .text(line, startX + indent, y, { width: totalW - indent });
     doc.moveDown(0.15);
     i += 1;
   }
+  resetToLeft(doc);
 }
 
 // Signature block at the very end — one of the required elements of an
@@ -470,16 +499,24 @@ export async function renderUgcCasCv(facultyId) {
   });
 
   // ── Header — official-form styling
+  const titleW = doc.page.width - doc.page.margins.left - doc.page.margins.right;
   doc
     .fillColor(CAS_COLORS.ink)
     .font('Helvetica-Bold')
     .fontSize(14)
-    .text('APPLICATION FOR PROMOTION UNDER CAS', { align: 'center', characterSpacing: 0.5 });
+    .text('APPLICATION FOR PROMOTION UNDER CAS', doc.page.margins.left, doc.y, {
+      width: titleW,
+      align: 'center',
+      characterSpacing: 0.5,
+    });
   doc
     .fillColor(CAS_COLORS.muted)
     .font('Helvetica')
     .fontSize(10)
-    .text('UGC Regulations 2018 — Appendix III (Form 9)', { align: 'center' });
+    .text('UGC Regulations 2018 — Appendix III (Form 9)', doc.page.margins.left, doc.y, {
+      width: titleW,
+      align: 'center',
+    });
   doc.moveDown(0.4);
   doc
     .moveTo(doc.page.margins.left, doc.y)
@@ -598,6 +635,7 @@ export async function renderUgcCasCv(facultyId) {
 
   //    4d. Consultancy
   casSectionHeader(doc, '4d', 'Consultancy');
+  const fullW = doc.page.width - doc.page.margins.left - doc.page.margins.right;
   if (manual.consultancyLakhs && manual.consultancyLakhs > 0) {
     doc
       .fillColor(CAS_COLORS.ink)
@@ -605,13 +643,16 @@ export async function renderUgcCasCv(facultyId) {
       .fontSize(10)
       .text(
         `Total consultancy earnings on record: Rs. ${manual.consultancyLakhs} lakh.`,
+        doc.page.margins.left,
+        doc.y,
+        { width: fullW },
       );
   } else {
     doc
       .fillColor(CAS_COLORS.muted)
       .font('Helvetica-Oblique')
       .fontSize(10)
-      .text('(No records on file.)');
+      .text('(No records on file.)', doc.page.margins.left, doc.y, { width: fullW });
   }
 
   //    4e. Research guidance
@@ -682,11 +723,17 @@ export async function renderUgcCasCv(facultyId) {
     })),
   );
   doc.moveDown(0.4);
+  const summaryW = doc.page.width - doc.page.margins.left - doc.page.margins.right;
   doc
     .fillColor(CAS_COLORS.ink)
     .font('Helvetica-Bold')
     .fontSize(11)
-    .text(`Total Research Score: ${casResult.total} points`, { align: 'right' });
+    .text(
+      `Total Research Score: ${casResult.total} points`,
+      doc.page.margins.left,
+      doc.y,
+      { width: summaryW, align: 'right' },
+    );
   doc
     .fillColor(CAS_COLORS.muted)
     .font('Helvetica')
@@ -699,11 +746,14 @@ export async function renderUgcCasCv(facultyId) {
             ? `Qualifies for Associate (>=75). ${casResult.eligibility.pointsToProfessor} points to Professor.`
             : `${casResult.eligibility.pointsToAssociate} points to Associate; ${casResult.eligibility.pointsToProfessor} to Professor.`
       }`,
-      { align: 'right' },
+      doc.page.margins.left,
+      doc.y,
+      { width: summaryW, align: 'right' },
     );
 
   // ── Declaration + signature (spec item on the CAS proforma)
   casSectionHeader(doc, '8', 'Declaration');
+  const declW = doc.page.width - doc.page.margins.left - doc.page.margins.right;
   doc
     .fillColor(CAS_COLORS.ink)
     .font('Helvetica')
@@ -712,7 +762,9 @@ export async function renderUgcCasCv(facultyId) {
       'I hereby declare that the information furnished above is true and correct to the best ' +
         'of my knowledge and belief. I understand that any misrepresentation or omission may ' +
         'result in disciplinary action per the applicable service rules.',
-      { align: 'justify' },
+      doc.page.margins.left,
+      doc.y,
+      { width: declW, align: 'justify' },
     );
   casSignatureBlock(doc);
 
@@ -722,6 +774,7 @@ export async function renderUgcCasCv(facultyId) {
     dateStyle: 'medium',
     timeStyle: 'short',
   });
+  const footerW = doc.page.width - doc.page.margins.left - doc.page.margins.right;
   doc
     .fillColor(CAS_COLORS.muted)
     .font('Helvetica-Oblique')
@@ -730,7 +783,9 @@ export async function renderUgcCasCv(facultyId) {
       `Generated by FacultyConnect · ${generatedAt} · UGC 2018 CAS proforma layout. ` +
         'The final CAS committee may apply multi-author sharing, journal-classification, and ' +
         'impact-factor tiers not captured in this summary.',
-      { align: 'center' },
+      doc.page.margins.left,
+      doc.y,
+      { width: footerW, align: 'center' },
     );
 
   doc.end();
