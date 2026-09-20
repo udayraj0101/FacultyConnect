@@ -13,6 +13,8 @@ import {
   listMyApplicationsHandler,
   listMyPostingsHandler,
   setJobStatusHandler,
+  updateJobHandler,
+  deleteJobHandler,
 } from '../controllers/job.controller.js';
 
 const router = Router();
@@ -40,6 +42,22 @@ router.patch(
   requireRole('CollegeAdmin', 'PlatformAdmin'),
   validateParams(objectIdParamSchema),
   setJobStatusHandler,
+);
+// CA-04 edit + archive. Institution-scoped ownership check lives in the
+// service so the same guard covers /status too.
+router.patch(
+  '/:id',
+  authenticate,
+  requireRole('CollegeAdmin', 'PlatformAdmin'),
+  validateParams(objectIdParamSchema),
+  updateJobHandler,
+);
+router.delete(
+  '/:id',
+  authenticate,
+  requireRole('CollegeAdmin', 'PlatformAdmin'),
+  validateParams(objectIdParamSchema),
+  deleteJobHandler,
 );
 router.get(
   '/:id/applicants',

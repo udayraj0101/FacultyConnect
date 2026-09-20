@@ -1,7 +1,11 @@
 import mongoose from 'mongoose';
 
 const DESIGNATIONS = ['Assistant', 'Associate', 'Professor', 'Guest', 'Research'];
-const STATUSES = ['open', 'closed'];
+// `archived` is a soft-delete tri-state: postings the admin removed but
+// that we keep for audit + past-application referencing. Public list
+// routes exclude archived by default; the "My postings" console can
+// opt in with an include_archived flag.
+const STATUSES = ['open', 'closed', 'archived'];
 
 const jobSchema = new mongoose.Schema(
   {

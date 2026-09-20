@@ -272,8 +272,13 @@ export async function listMyInstitutionPostings(requesterId) {
   }));
 }
 
-export async function setJobStatus(id, status, requesterId) {
-  const job = await Job.findById(id);
+/**
+ * Ownership check reused by every mutation (update / archive / status).
+ * Returns { job, requester } on success or throws a 403/404 the caller
+ * can forward straight to the response.
+ */
+async function ensureCanMutateJob(jobId, requesterId) {
+  const job = await Job.findById(jobId);
   if (!job) {
     const err = new Error('Job not found');
     err.code = 'JOB_NOT_FOUND';
@@ -291,6 +296,65 @@ export async function setJobStatus(id, status, requesterId) {
     err.status = 403;
     throw err;
   }
+  return { job, requester };
+}
+
+/**
+ * CA-04 edit route. Applies a partial patch to a posting the caller owns.
+ * Fields not present in `patch` stay untouched. Status is not editable
+ * here — /status is the canonical route for open/closed/archived
+ * transitions and handles notification side-effects.
+ */
+export async function updateJob(id, patch, requesterId) {
+  const { job } = await ensureCanMutateJob(id, requesterId);
+  // Refuse edits on archived postings — that's the tombstone state and
+  // the admin should un-archive first (or clone) rather than back-fill.
+  if (job.status === 'archived') {
+    const err = new Error('Archived postings cannot be edited. Restore or clone instead.');
+    err.code = 'JOB_ARCHIVED';
+    err.status = 409;
+    throw err;
+  }
+  Object.assign(job, patch);
+  await job.save();
+  logger.info('job updated', {
+    jobId: id,
+    by: requesterId,
+    fields: Object.keys(patch),
+  });
+  return job.populate('institutionId', 'name domain verificationStatus');
+}
+
+/**
+ * CA-04 delete route. Soft-delete via status='archived' so past
+ * applications keep resolving. `hardDelete=true` (rare) removes the doc
+ * outright — only allowed when the posting has zero applications, so
+ * we never break Application → Job navigation for applicants.
+ */
+export async function archiveJob(id, requesterId, { hardDelete = false } = {}) {
+  const { job } = await ensureCanMutateJob(id, requesterId);
+  if (hardDelete) {
+    const applicationCount = await Application.countDocuments({ jobId: id });
+    if (applicationCount > 0) {
+      const err = new Error(
+        `${applicationCount} application(s) reference this posting. Archive instead of deleting.`,
+      );
+      err.code = 'JOB_HAS_APPLICATIONS';
+      err.status = 409;
+      throw err;
+    }
+    await job.deleteOne();
+    logger.info('job hard-deleted', { jobId: id, by: requesterId });
+    return { deleted: true, hardDelete: true, id };
+  }
+  job.status = 'archived';
+  await job.save();
+  logger.info('job archived', { jobId: id, by: requesterId });
+  return { deleted: true, hardDelete: false, id, status: job.status };
+}
+
+export async function setJobStatus(id, status, requesterId) {
+  const { job } = await ensureCanMutateJob(id, requesterId);
   job.status = status;
   await job.save();
   return job.populate('institutionId', 'name domain verificationStatus');

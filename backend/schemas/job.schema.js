@@ -15,6 +15,12 @@ export const createJobSchema = z.object({
   deadline: z.coerce.date(),
 });
 
+// PATCH /v1/jobs/:id (CA-04). All fields optional so admins can nudge a
+// typo or extend a deadline without re-submitting the whole posting.
+// Status is deliberately NOT editable here — it stays on its own route
+// (/status) which also handles the notification side-effects.
+export const updateJobSchema = createJobSchema.partial().strict();
+
 function csvList(values) {
   return z
     .string()

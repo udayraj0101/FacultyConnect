@@ -1,11 +1,11 @@
 import React, { useState } from 'react';
-import { Briefcase } from 'lucide-react';
+import { Briefcase, Save } from 'lucide-react';
 import SectionCard from '../dashboard/SectionCard';
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
 import { Label } from '../ui/Label';
 import { Alert, AlertDescription } from '../ui/Alert';
-import { createJob } from '../../services/job.service';
+import { createJob, updateJob } from '../../services/job.service';
 
 const DESIGNATIONS = ['Assistant', 'Associate', 'Professor', 'Guest', 'Research'];
 
@@ -22,8 +22,41 @@ const EMPTY = {
   domainTags: '',
 };
 
-export default function PostJobForm({ onCreated }) {
-  const [form, setForm] = useState(EMPTY);
+// Serialise a Date-ish value for the date input (needs YYYY-MM-DD).
+function toDateInputValue(d) {
+  if (!d) return '';
+  const dt = new Date(d);
+  if (Number.isNaN(dt.getTime())) return '';
+  return dt.toISOString().slice(0, 10);
+}
+
+// Populate the form state from an existing Job object (used in edit mode).
+// Deadline needs date-only serialisation; domainTags flattens to a
+// comma-separated string.
+function jobToFormState(job) {
+  if (!job) return EMPTY;
+  return {
+    title: job.title || '',
+    department: job.department || '',
+    designation: job.designation || 'Assistant',
+    qualifications: job.qualifications || '',
+    description: job.description || '',
+    location: job.location || '',
+    experienceYears: job.experienceYears ?? 0,
+    salaryDisclosed: job.salaryDisclosed || '',
+    deadline: toDateInputValue(job.deadline),
+    domainTags: Array.isArray(job.domainTags) ? job.domainTags.join(', ') : '',
+  };
+}
+
+/**
+ * PostJobForm doubles as the edit form. When `editJob` is set, we
+ * initialise from that job, call PATCH /jobs/:id on submit, and expose
+ * a Cancel button. Otherwise it renders as the standard create form.
+ */
+export default function PostJobForm({ onCreated, editJob, onSaved, onCancel }) {
+  const isEdit = Boolean(editJob);
+  const [form, setForm] = useState(() => (isEdit ? jobToFormState(editJob) : EMPTY));
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(null);
@@ -51,16 +84,22 @@ export default function PostJobForm({ onCreated }) {
         .filter(Boolean),
     };
     try {
-      const job = await createJob(payload);
-      setSuccess(job);
-      setForm(EMPTY);
-      onCreated?.(job);
+      if (isEdit) {
+        const updated = await updateJob(editJob.id, payload);
+        setSuccess(updated);
+        onSaved?.(updated);
+      } else {
+        const job = await createJob(payload);
+        setSuccess(job);
+        setForm(EMPTY);
+        onCreated?.(job);
+      }
     } catch (err) {
       const details = err.response?.data?.error?.details;
       if (details?.length) {
         setError(details.map(d => `${d.path}: ${d.message}`).join(' · '));
       } else {
-        setError(err.response?.data?.error?.message || 'Could not create job');
+        setError(err.response?.data?.error?.message || (isEdit ? 'Could not save changes' : 'Could not create job'));
       }
     } finally {
       setSubmitting(false);
@@ -69,8 +108,12 @@ export default function PostJobForm({ onCreated }) {
 
   return (
     <SectionCard
-      title="Post a new opening"
-      subtitle="Faculty see this in the Job Board and can apply with one click"
+      title={isEdit ? `Edit posting — ${editJob.title}` : 'Post a new opening'}
+      subtitle={
+        isEdit
+          ? 'Update fields and save. Applicants stay attached.'
+          : 'Faculty see this in the Job Board and can apply with one click'
+      }
     >
       <form onSubmit={onSubmit} className="space-y-4">
         {error && (
@@ -198,13 +241,32 @@ export default function PostJobForm({ onCreated }) {
           </div>
 
         <div className="flex items-center justify-end gap-2 pt-2 border-t border-border">
-          <Button type="button" variant="outline" onClick={() => setForm(EMPTY)} disabled={submitting}>
-            Reset
-          </Button>
-          <Button type="submit" disabled={submitting}>
-            <Briefcase size={14} className="mr-1.5" />
-            {submitting ? 'Publishing…' : 'Publish job'}
-          </Button>
+          {isEdit ? (
+            <>
+              <Button type="button" variant="outline" onClick={onCancel} disabled={submitting}>
+                Cancel
+              </Button>
+              <Button type="submit" disabled={submitting}>
+                <Save size={14} className="mr-1.5" />
+                {submitting ? 'Saving…' : 'Save changes'}
+              </Button>
+            </>
+          ) : (
+            <>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setForm(EMPTY)}
+                disabled={submitting}
+              >
+                Reset
+              </Button>
+              <Button type="submit" disabled={submitting}>
+                <Briefcase size={14} className="mr-1.5" />
+                {submitting ? 'Publishing…' : 'Publish job'}
+              </Button>
+            </>
+          )}
         </div>
       </form>
     </SectionCard>

@@ -49,3 +49,19 @@ export async function setJobStatus(id, status) {
   const { data } = await api.patch(`/jobs/${id}/status`, { status });
   return data.job;
 }
+
+// CA-04 edit route. Partial patch — only fields present in `patch`
+// are updated.
+export async function updateJob(id, patch) {
+  const { data } = await api.patch(`/jobs/${id}`, patch);
+  return data.job;
+}
+
+// CA-04 delete route. Defaults to archive (soft delete); `hard=true`
+// removes the doc entirely and fails if any applications reference it.
+export async function deleteJob(id, { hard = false } = {}) {
+  const { data } = await api.delete(`/jobs/${id}`, {
+    params: hard ? { hard: 'true' } : undefined,
+  });
+  return data;
+}

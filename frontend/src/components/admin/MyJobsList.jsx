@@ -1,11 +1,12 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { Briefcase, CalendarClock, ClipboardList } from 'lucide-react';
+import { Briefcase, CalendarClock, ClipboardList, Pencil, Trash2, ArchiveRestore } from 'lucide-react';
 import SectionCard from '../dashboard/SectionCard';
 import EmptyState from '../ui/EmptyState';
 import { SkeletonList } from '../ui/Skeleton';
 import { Button } from '../ui/Button';
 import { Alert, AlertDescription } from '../ui/Alert';
-import { listMyPostings, setJobStatus } from '../../services/job.service';
+import { listMyPostings, setJobStatus, deleteJob, getJob } from '../../services/job.service';
+import PostJobForm from './PostJobForm';
 
 function daysUntil(deadline) {
   return Math.ceil((new Date(deadline).getTime() - Date.now()) / (24 * 60 * 60 * 1000));
@@ -15,6 +16,7 @@ function StatusPill({ status }) {
   const styles = {
     open: 'bg-success/10 text-success border-success/30',
     closed: 'bg-muted text-text-muted border-border',
+    archived: 'bg-danger/10 text-danger border-danger/30',
   };
   return (
     <span
@@ -70,21 +72,62 @@ function DeadlineText({ deadline }) {
   );
 }
 
-function JobRowActions({ job, busy, onOpenApplicants, onToggle }) {
+function JobRowActions({ job, busy, onOpenApplicants, onToggle, onEdit, onDelete }) {
+  const archived = job.status === 'archived';
   return (
-    <div className="flex flex-col sm:flex-row md:flex-col gap-1 min-w-[110px]">
-      <Button size="sm" variant="outline" onClick={() => onOpenApplicants?.(job.id)}>
+    <div className="flex flex-col sm:flex-row md:flex-col gap-1 min-w-[120px]">
+      <Button
+        size="sm"
+        variant="outline"
+        onClick={() => onOpenApplicants?.(job.id)}
+        disabled={busy}
+      >
         View applicants
       </Button>
+      {!archived && (
+        <Button size="sm" variant="outline" onClick={() => onEdit(job)} disabled={busy}>
+          <Pencil size={12} className="mr-1" />
+          Edit
+        </Button>
+      )}
       <Button
         size="sm"
         variant="outline"
         onClick={() => onToggle(job)}
         disabled={busy}
-        className={job.status === 'open' ? 'border-danger/40 text-danger hover:bg-danger/5' : ''}
+        className={
+          archived
+            ? 'border-primary/40 text-primary hover:bg-primary/5'
+            : job.status === 'open'
+              ? 'border-danger/40 text-danger hover:bg-danger/5'
+              : ''
+        }
       >
-        {busy ? '…' : job.status === 'open' ? 'Close job' : 'Reopen'}
+        {busy
+          ? '…'
+          : archived
+            ? (
+                <>
+                  <ArchiveRestore size={12} className="mr-1" />
+                  Restore
+                </>
+              )
+            : job.status === 'open'
+              ? 'Close job'
+              : 'Reopen'}
       </Button>
+      {!archived && (
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={() => onDelete(job)}
+          disabled={busy}
+          className="border-danger/40 text-danger hover:bg-danger/5"
+        >
+          <Trash2 size={12} className="mr-1" />
+          Archive
+        </Button>
+      )}
     </div>
   );
 }
@@ -94,6 +137,12 @@ export default function MyJobsList({ onOpenApplicants }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [busyId, setBusyId] = useState(null);
+  // Full job doc being edited (fetched via getJob so we get description
+  // + qualifications, which the aggregate roster query strips out).
+  const [editingJob, setEditingJob] = useState(null);
+  const [editLoading, setEditLoading] = useState(false);
+  // Confirm-delete state; { id, hasApps } so we can warn before archiving.
+  const [confirmDelete, setConfirmDelete] = useState(null);
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -115,12 +164,62 @@ export default function MyJobsList({ onOpenApplicants }) {
   const toggle = async job => {
     if (busyId) return;
     setBusyId(job.id);
-    const nextStatus = job.status === 'open' ? 'closed' : 'open';
+    // Archived → restore path opens the posting again; open ↔ closed
+    // path toggles as before. Keeps the same button call site.
+    const nextStatus =
+      job.status === 'archived' ? 'open' : job.status === 'open' ? 'closed' : 'open';
     try {
       await setJobStatus(job.id, nextStatus);
       setJobs(prev => prev.map(j => (j.id === job.id ? { ...j, status: nextStatus } : j)));
     } catch (err) {
       setError(err.response?.data?.error?.message || 'Could not update job status');
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const openEdit = async job => {
+    setEditLoading(true);
+    setError('');
+    try {
+      // Fetch the full doc — the roster aggregate omits qualifications +
+      // description which we need in the edit form.
+      const full = await getJob(job.id);
+      setEditingJob(full);
+    } catch (err) {
+      setError(err.response?.data?.error?.message || 'Could not load posting for edit');
+    } finally {
+      setEditLoading(false);
+    }
+  };
+
+  const onEditSaved = updated => {
+    setJobs(prev =>
+      prev.map(j =>
+        j.id === updated.id
+          ? {
+              ...j,
+              title: updated.title,
+              department: updated.department,
+              designation: updated.designation,
+              location: updated.location,
+              deadline: updated.deadline,
+            }
+          : j,
+      ),
+    );
+    setEditingJob(null);
+  };
+
+  const doDelete = async job => {
+    setBusyId(job.id);
+    setError('');
+    try {
+      await deleteJob(job.id);
+      setJobs(prev => prev.map(j => (j.id === job.id ? { ...j, status: 'archived' } : j)));
+      setConfirmDelete(null);
+    } catch (err) {
+      setError(err.response?.data?.error?.message || 'Could not archive posting');
     } finally {
       setBusyId(null);
     }
@@ -140,6 +239,42 @@ export default function MyJobsList({ onOpenApplicants }) {
         <Alert variant="destructive" className="mb-3">
           <AlertDescription>{error}</AlertDescription>
         </Alert>
+      )}
+
+      {editingJob && (
+        <div className="mb-6 rounded-lg border-2 border-primary/20 bg-primary/5 p-4">
+          <PostJobForm
+            editJob={editingJob}
+            onSaved={onEditSaved}
+            onCancel={() => setEditingJob(null)}
+          />
+        </div>
+      )}
+
+      {confirmDelete && (
+        <div className="mb-4 rounded-md border border-danger/30 bg-danger/5 p-4 flex items-start justify-between gap-3">
+          <div className="text-sm text-text-light">
+            <div className="font-semibold text-danger">Archive this posting?</div>
+            <p className="text-xs text-text-muted mt-1 max-w-lg">
+              <span className="font-semibold">{confirmDelete.title}</span> will be moved to
+              archived status. Existing applications stay attached and applicants keep
+              access to their submission history. You can restore it later.
+            </p>
+          </div>
+          <div className="flex gap-2 shrink-0">
+            <Button size="sm" variant="outline" onClick={() => setConfirmDelete(null)}>
+              Cancel
+            </Button>
+            <Button
+              size="sm"
+              className="bg-danger hover:bg-danger/90 text-white"
+              onClick={() => doDelete(confirmDelete)}
+              disabled={busyId === confirmDelete.id}
+            >
+              {busyId === confirmDelete.id ? 'Archiving…' : 'Archive'}
+            </Button>
+          </div>
+        </div>
       )}
 
       {loading ? (
@@ -188,9 +323,11 @@ export default function MyJobsList({ onOpenApplicants }) {
                     <td className="py-3 pr-4">
                       <JobRowActions
                         job={job}
-                        busy={busyId === job.id}
+                        busy={busyId === job.id || editLoading}
                         onOpenApplicants={onOpenApplicants}
                         onToggle={toggle}
+                        onEdit={openEdit}
+                        onDelete={j => setConfirmDelete(j)}
                       />
                     </td>
                   </tr>
@@ -231,9 +368,11 @@ export default function MyJobsList({ onOpenApplicants }) {
 
                 <JobRowActions
                   job={job}
-                  busy={busyId === job.id}
+                  busy={busyId === job.id || editLoading}
                   onOpenApplicants={onOpenApplicants}
                   onToggle={toggle}
+                  onEdit={openEdit}
+                  onDelete={j => setConfirmDelete(j)}
                 />
               </div>
             ))}
