@@ -321,19 +321,33 @@ export default function OpportunityDetail() {
             label="Mode"
             value={<span className="capitalize">{opp.mode}</span>}
           />
-          {(opp.city || opp.state || opp.location) && (
-            <InfoRow
-              icon={<MapPin size={15} />}
-              label="Location"
-              value={
-                opp.city || opp.state
-                  ? [opp.city, opp.state, opp.location && opp.location !== opp.city ? opp.location : null]
-                      .filter(Boolean)
-                      .join(', ')
-                  : opp.location
-              }
-            />
-          )}
+          {(() => {
+            // Location composition matches the ical.service dedup —
+            // prefer structured 'city, state'; only append the legacy
+            // free-text location when it adds new info (a specific
+            // block / campus / hostel), not when it just repeats what
+            // we already have.
+            const structured = [opp.city, opp.state].filter(Boolean).join(', ');
+            const parts = [];
+            if (structured) parts.push(structured);
+            if (opp.location && opp.location !== structured) {
+              // Suppress the free-text if it fully overlaps the
+              // structured pair either way — e.g. "Chennai, Tamil Nadu"
+              // == structured, or "Chennai" is a prefix of structured.
+              const s = structured || '';
+              const overlaps =
+                s.startsWith(opp.location) || opp.location.startsWith(s);
+              if (!overlaps || !structured) parts.push(opp.location);
+            }
+            if (parts.length === 0) return null;
+            return (
+              <InfoRow
+                icon={<MapPin size={15} />}
+                label="Location"
+                value={parts.join(', ')}
+              />
+            );
+          })()}
           {opp.type !== 'journal' && opp.type !== 'grant' && (
             <InfoRow
               icon={<IndianRupee size={15} />}
