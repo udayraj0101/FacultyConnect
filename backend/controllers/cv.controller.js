@@ -1,11 +1,17 @@
-import { renderFacultyCv, renderUgcCasCv } from '../services/cv.service.js';
+import {
+  renderFacultyCv,
+  renderUgcCasCv,
+  renderAicteCv,
+  renderNirfCv,
+} from '../services/cv.service.js';
 
-// Two CV templates today. `template=ugc_cas9` renders the standardised
-// UGC 2018 promotion proforma; anything else falls back to the generic
-// branded CV (Wave 1 default). Extend by adding cases here rather than
-// forking the route — keeps the URL surface stable.
+// Four CV templates today. `template=` picks the renderer; unknown values
+// fall back to the generic branded CV. Extend by adding cases here
+// rather than forking the route — keeps the URL surface stable.
 const TEMPLATES = {
   ugc_cas9: renderUgcCasCv,
+  aicte: renderAicteCv,
+  nirf: renderNirfCv,
   generic: renderFacultyCv,
 };
 

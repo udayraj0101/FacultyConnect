@@ -102,7 +102,7 @@ export default function CasScoreCard({ onError }) {
   const [draft, setDraft] = useState({});
   const [saving, setSaving] = useState(false);
   const [breakdownOpen, setBreakdownOpen] = useState(false);
-  const [downloading, setDownloading] = useState(false);
+  const [downloading, setDownloading] = useState(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -137,15 +137,17 @@ export default function CasScoreCard({ onError }) {
     setEditing(false);
   };
 
-  const downloadCasCv = async () => {
+  // Shared download handler for all three promotion-format CVs. Tracks
+  // which template is in-flight so only its button shows the spinner.
+  const handleDownload = async template => {
     if (downloading) return;
-    setDownloading(true);
+    setDownloading(template);
     try {
-      await downloadCv('ugc_cas9');
+      await downloadCv(template);
     } catch (err) {
-      onError?.(err.response?.data?.error?.message || 'Could not download CAS-9 CV');
+      onError?.(err.response?.data?.error?.message || 'Could not download CV');
     } finally {
-      setDownloading(false);
+      setDownloading(null);
     }
   };
 
@@ -216,16 +218,36 @@ export default function CasScoreCard({ onError }) {
             </div>
           </div>
           {!editing && (
-            <div className="flex items-center gap-2 shrink-0">
+            <div className="flex items-center gap-2 shrink-0 flex-wrap justify-end">
               <Button
                 size="sm"
                 variant="outline"
-                onClick={downloadCasCv}
-                disabled={downloading}
-                title="Download the CAS-9 promotion proforma pre-filled from your profile"
+                onClick={() => handleDownload('ugc_cas9')}
+                disabled={Boolean(downloading)}
+                title="UGC Regulations 2018 CAS promotion proforma (Form 9)"
               >
                 <FileDown size={13} className="mr-1" />
-                {downloading ? 'Generating…' : 'CAS-9 PDF'}
+                {downloading === 'ugc_cas9' ? 'Generating…' : 'CAS-9 PDF'}
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => handleDownload('aicte')}
+                disabled={Boolean(downloading)}
+                title="AICTE Approval Process faculty self-disclosure proforma"
+              >
+                <FileDown size={13} className="mr-1" />
+                {downloading === 'aicte' ? 'Generating…' : 'AICTE PDF'}
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => handleDownload('nirf')}
+                disabled={Boolean(downloading)}
+                title="NIRF per-faculty data card — reconciliation aid for the institution's submission"
+              >
+                <FileDown size={13} className="mr-1" />
+                {downloading === 'nirf' ? 'Generating…' : 'NIRF PDF'}
               </Button>
               <Button size="sm" variant="outline" onClick={startEdit}>
                 Edit inputs

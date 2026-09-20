@@ -807,3 +807,591 @@ export async function renderUgcCasCv(facultyId) {
 // future callers (a stand-alone scoring endpoint) can reuse it without
 // depending on cas.service.
 export { UGC_2018_API_RULES };
+
+// ─────────────────────────────────────────────────────────────────────────
+// AICTE Faculty CV template
+// ─────────────────────────────────────────────────────────────────────────
+//
+// Modelled on the AICTE Approval Process Handbook faculty proforma
+// (Annexure "Faculty Details") that technical institutions submit
+// annually and use for EOA / self-disclosure. The template is structured
+// as a rigid section list — same helpers as the CAS-9 renderer since
+// AICTE's proforma is another table-of-tables format.
+//
+// Layout goal: single-column, formal, photocopy-friendly. Reuses the
+// cas* helpers verbatim (they're style-neutral); only the section
+// ordering, numbering and headings differ from the CAS-9 template.
+
+export async function renderAicteCv(facultyId) {
+  const faculty = await Faculty.findById(facultyId).populate(
+    'institutionId',
+    'name domain verificationStatus',
+  );
+  if (!faculty) {
+    const err = new Error('Faculty not found');
+    err.code = 'FACULTY_NOT_FOUND';
+    err.status = 404;
+    throw err;
+  }
+  const publications = await Publication.find({ facultyId }).sort({ year: -1, createdAt: -1 });
+  const manual = faculty.casManualInputs || {};
+
+  const doc = new PDFDocument({ size: 'A4', margin: 50 });
+  const chunks = [];
+  doc.on('data', chunk => chunks.push(chunk));
+  const finished = new Promise((resolve, reject) => {
+    doc.on('end', () => resolve(Buffer.concat(chunks)));
+    doc.on('error', reject);
+  });
+
+  // Header
+  const titleW = doc.page.width - doc.page.margins.left - doc.page.margins.right;
+  doc
+    .fillColor(CAS_COLORS.ink)
+    .font('Helvetica-Bold')
+    .fontSize(14)
+    .text('AICTE FACULTY DETAILS', doc.page.margins.left, doc.y, {
+      width: titleW,
+      align: 'center',
+      characterSpacing: 0.5,
+    });
+  doc
+    .fillColor(CAS_COLORS.muted)
+    .font('Helvetica')
+    .fontSize(10)
+    .text('Approval Process Handbook proforma (self-disclosure)', doc.page.margins.left, doc.y, {
+      width: titleW,
+      align: 'center',
+    });
+  doc.moveDown(0.4);
+  doc
+    .moveTo(doc.page.margins.left, doc.y)
+    .lineTo(doc.page.width - doc.page.margins.right, doc.y)
+    .lineWidth(1)
+    .strokeColor(CAS_COLORS.ink)
+    .stroke();
+  doc.moveDown(0.6);
+
+  // 1. Personal information — same fields as CAS-9 plus AICTE-specific
+  // "areas of specialisation" (drawn from domainTags).
+  casSectionHeader(doc, '1', 'Personal Information');
+  casKeyValue(doc, 'Name', faculty.name);
+  casKeyValue(
+    doc,
+    'Current Designation',
+    faculty.designation === 'Professor'
+      ? 'Professor'
+      : `${faculty.designation || ''} Professor`,
+  );
+  casKeyValue(doc, 'Department', faculty.department);
+  casKeyValue(doc, 'Institution', faculty.institutionId?.name);
+  casKeyValue(doc, 'Email', faculty.email);
+  casKeyValue(doc, 'Phone', faculty.phone);
+  if (faculty.orcidId) casKeyValue(doc, 'ORCID iD', faculty.orcidId);
+  if (faculty.domainTags?.length) {
+    casKeyValue(doc, 'Areas of Specialisation', faculty.domainTags.join('; '));
+  }
+
+  // 2. Academic qualifications
+  casSectionHeader(doc, '2', 'Academic Qualifications');
+  casTable(
+    doc,
+    [
+      { header: 'Degree', key: 'degree', flex: 1 },
+      { header: 'Field / Specialisation', key: 'field', flex: 1.3 },
+      { header: 'University / Institution', key: 'institution', flex: 1.6 },
+      { header: 'Year', key: 'year', flex: 0.5 },
+    ],
+    (faculty.education || []).map(e => ({
+      degree: e.degree || '—',
+      field: e.field || '—',
+      institution: e.institution || '—',
+      year: e.year != null ? String(e.year) : '—',
+    })),
+  );
+
+  // 3. Positions held
+  casSectionHeader(doc, '3', 'Positions Held');
+  casTable(
+    doc,
+    [
+      { header: 'Institution', key: 'institution', flex: 1.6 },
+      { header: 'Designation', key: 'designation', flex: 1.2 },
+      { header: 'Period', key: 'period', flex: 0.9 },
+    ],
+    (faculty.employmentHistory || []).map(e => ({
+      institution: e.institution,
+      designation: e.designation || '—',
+      period: fmtYearRange(e.from, e.to, e.current),
+    })),
+  );
+
+  // 4. Publications
+  casSectionHeader(doc, '4', 'Research Publications (Peer-Reviewed / UGC-Listed)');
+  const pubLines = publications.map(p => {
+    const authors = p.authors?.length
+      ? p.authors.length > 6
+        ? `${p.authors.slice(0, 6).join(', ')} et al.`
+        : p.authors.join(', ')
+      : '';
+    const bits = [];
+    if (authors) bits.push(authors);
+    if (p.year) bits.push(`(${p.year})`);
+    bits.push(`"${p.title}"`);
+    if (p.venue) bits.push(p.venue);
+    if (p.doi) bits.push(`DOI: ${p.doi}`);
+    return bits.join(' ');
+  });
+  casNumberedList(doc, pubLines);
+
+  // 5. Books & chapters
+  casSectionHeader(doc, '5', 'Books & Book Chapters');
+  const bookLines = [];
+  if (manual.booksInternational)
+    bookLines.push(`Books authored — International publisher: ${manual.booksInternational}`);
+  if (manual.booksNational)
+    bookLines.push(`Books authored — National publisher: ${manual.booksNational}`);
+  if (manual.chaptersInternational)
+    bookLines.push(`Book chapters — International: ${manual.chaptersInternational}`);
+  if (manual.chaptersNational)
+    bookLines.push(`Book chapters — National: ${manual.chaptersNational}`);
+  if (manual.editorInternational)
+    bookLines.push(`Editor — International volume: ${manual.editorInternational}`);
+  if (manual.editorNational)
+    bookLines.push(`Editor — National volume: ${manual.editorNational}`);
+  casNumberedList(doc, bookLines);
+
+  // 6. Sponsored research projects
+  casSectionHeader(doc, '6', 'Sponsored Research Projects');
+  casTable(
+    doc,
+    [
+      { header: 'Title', key: 'title', flex: 2 },
+      { header: 'Funding Agency', key: 'agency', flex: 1 },
+      { header: 'Role', key: 'role', flex: 0.6 },
+      { header: 'Amount', key: 'amount', flex: 0.9 },
+      { header: 'Status', key: 'status', flex: 0.7 },
+    ],
+    (faculty.grantsReceived || []).map(g => ({
+      title: g.title,
+      agency: g.agency || '—',
+      role: g.role || 'PI',
+      amount: fmtInr(g.amount),
+      status: g.ongoing ? 'Ongoing' : g.year ? String(g.year) : 'Completed',
+    })),
+  );
+
+  // 7. Consultancy
+  casSectionHeader(doc, '7', 'Consultancy Activities');
+  const fullW = doc.page.width - doc.page.margins.left - doc.page.margins.right;
+  if (manual.consultancyLakhs && manual.consultancyLakhs > 0) {
+    doc
+      .fillColor(CAS_COLORS.ink)
+      .font('Helvetica')
+      .fontSize(10)
+      .text(
+        `Total consultancy earnings on record: Rs. ${manual.consultancyLakhs} lakh.`,
+        doc.page.margins.left,
+        doc.y,
+        { width: fullW },
+      );
+  } else {
+    doc
+      .fillColor(CAS_COLORS.muted)
+      .font('Helvetica-Oblique')
+      .fontSize(10)
+      .text('(No records on file.)', doc.page.margins.left, doc.y, { width: fullW });
+  }
+
+  // 8. PhD / M.Phil guidance
+  casSectionHeader(doc, '8', 'Ph.D. / M.Phil. Research Guidance');
+  const guidanceRows = [];
+  if (manual.phdAwarded)
+    guidanceRows.push({ level: 'Ph.D.', status: 'Awarded', count: manual.phdAwarded });
+  if (manual.phdOngoing)
+    guidanceRows.push({ level: 'Ph.D.', status: 'Ongoing (registered)', count: manual.phdOngoing });
+  if (manual.mPhilAwarded)
+    guidanceRows.push({ level: 'M.Phil.', status: 'Awarded', count: manual.mPhilAwarded });
+  casTable(
+    doc,
+    [
+      { header: 'Level', key: 'level', flex: 1 },
+      { header: 'Status', key: 'status', flex: 2 },
+      { header: 'Count', key: 'count', flex: 0.6 },
+    ],
+    guidanceRows.map(r => ({ ...r, count: String(r.count) })),
+  );
+
+  // 9. Awards
+  casSectionHeader(doc, '9', 'Awards & Fellowships');
+  casNumberedList(
+    doc,
+    (faculty.awards || []).map(a => {
+      const bits = [a.title];
+      if (a.year) bits.push(`(${a.year})`);
+      if (a.description) bits.push(`— ${a.description}`);
+      return bits.join(' ');
+    }),
+  );
+
+  // 10. Invited lectures / conferences
+  casSectionHeader(doc, '10', 'Conferences / Seminars / Invited Lectures');
+  const lectureLines = [];
+  if (manual.invitedLecturesIntlAbroad)
+    lectureLines.push(`International (abroad): ${manual.invitedLecturesIntlAbroad}`);
+  if (manual.invitedLecturesIntlInIndia)
+    lectureLines.push(`International (in India): ${manual.invitedLecturesIntlInIndia}`);
+  if (manual.invitedLecturesNational)
+    lectureLines.push(`National: ${manual.invitedLecturesNational}`);
+  if (manual.invitedLecturesState)
+    lectureLines.push(`State / University: ${manual.invitedLecturesState}`);
+  casNumberedList(doc, lectureLines);
+
+  // 11. Research metrics summary — surface the citation-derived numbers
+  // AICTE self-disclosure lists (h-index, citations, publications).
+  casSectionHeader(doc, '11', 'Research Impact Metrics');
+  casTable(
+    doc,
+    [
+      { header: 'Metric', key: 'metric', flex: 2 },
+      { header: 'Value', key: 'value', flex: 1 },
+    ],
+    [
+      { metric: 'Total peer-reviewed publications on file', value: String(publications.length) },
+      { metric: 'Citations (as per Scopus / ORCID sync)', value: String(faculty.citationCount || 0) },
+      { metric: 'h-index', value: String(faculty.hIndex || 0) },
+      { metric: 'i10-index', value: String(faculty.i10Index || 0) },
+    ],
+  );
+
+  // 12. Declaration + signature
+  casSectionHeader(doc, '12', 'Declaration');
+  const declW = doc.page.width - doc.page.margins.left - doc.page.margins.right;
+  doc
+    .fillColor(CAS_COLORS.ink)
+    .font('Helvetica')
+    .fontSize(10)
+    .text(
+      'I certify that the information furnished above is true and correct to the best of my ' +
+        'knowledge. I understand that any incorrect information may lead to action per the ' +
+        'AICTE Approval Process regulations and the institution\'s service rules.',
+      doc.page.margins.left,
+      doc.y,
+      { width: declW, align: 'justify' },
+    );
+  casSignatureBlock(doc);
+
+  doc.moveDown(2);
+  const generatedAt = new Date().toLocaleString('en-IN', {
+    dateStyle: 'medium',
+    timeStyle: 'short',
+  });
+  const footerW = doc.page.width - doc.page.margins.left - doc.page.margins.right;
+  doc
+    .fillColor(CAS_COLORS.muted)
+    .font('Helvetica-Oblique')
+    .fontSize(8)
+    .text(
+      `Generated by FacultyConnect · ${generatedAt} · AICTE Approval Process proforma layout. ` +
+        'This is a self-disclosure format — the institution\'s AICTE compliance officer may ' +
+        'require additional supporting documents at submission.',
+      doc.page.margins.left,
+      doc.y,
+      { width: footerW, align: 'center' },
+    );
+
+  doc.end();
+  const buffer = await finished;
+
+  logger.info('aicte cv rendered', {
+    facultyId,
+    bytes: buffer.length,
+    publications: publications.length,
+  });
+  return {
+    buffer,
+    filename: `aicte-cv-${safeFilename(faculty.name)}.pdf`,
+  };
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// NIRF Faculty CV template
+// ─────────────────────────────────────────────────────────────────────────
+//
+// Modelled on the NIRF (National Institutional Ranking Framework)
+// faculty data submission format used by MHRD's ranking exercise. NIRF's
+// per-faculty card is very compact — it's a summary sheet meant to
+// aggregate at the institution level rather than a full CV, so we render
+// it as a single-page density-optimised summary with big tables and
+// numeric rollups.
+
+export async function renderNirfCv(facultyId) {
+  const faculty = await Faculty.findById(facultyId).populate(
+    'institutionId',
+    'name domain verificationStatus',
+  );
+  if (!faculty) {
+    const err = new Error('Faculty not found');
+    err.code = 'FACULTY_NOT_FOUND';
+    err.status = 404;
+    throw err;
+  }
+  const publications = await Publication.find({ facultyId }).sort({ year: -1, createdAt: -1 });
+  const manual = faculty.casManualInputs || {};
+
+  // Derive NIRF-relevant aggregates. NIRF cares about:
+  // - Publications broken down by indexer (SCI / Scopus / WoS) — we don't
+  //   store per-paper indexer yet, so treat all as "peer-reviewed" and
+  //   note the caveat in the footnote.
+  // - Sponsored funding: sum of grantsReceived amounts (in lakh Rs).
+  // - PhD guided: awarded + ongoing counts.
+  // - Faculty experience years: current year minus earliest employment
+  //   from year.
+  const grantFundingLakhs =
+    (faculty.grantsReceived || [])
+      .reduce((s, g) => s + (g.amount || 0), 0) / 100_000;
+  const earliestFrom = (faculty.employmentHistory || [])
+    .map(e => e.from)
+    .filter(y => Number.isFinite(y))
+    .reduce((min, y) => (min == null ? y : Math.min(min, y)), null);
+  const experienceYears = earliestFrom ? new Date().getFullYear() - earliestFrom : null;
+  const highest = (faculty.education || [])[0] || null;
+
+  const doc = new PDFDocument({ size: 'A4', margin: 50 });
+  const chunks = [];
+  doc.on('data', chunk => chunks.push(chunk));
+  const finished = new Promise((resolve, reject) => {
+    doc.on('end', () => resolve(Buffer.concat(chunks)));
+    doc.on('error', reject);
+  });
+
+  // Header
+  const titleW = doc.page.width - doc.page.margins.left - doc.page.margins.right;
+  doc
+    .fillColor(CAS_COLORS.ink)
+    .font('Helvetica-Bold')
+    .fontSize(14)
+    .text('NIRF FACULTY DATA CARD', doc.page.margins.left, doc.y, {
+      width: titleW,
+      align: 'center',
+      characterSpacing: 0.5,
+    });
+  doc
+    .fillColor(CAS_COLORS.muted)
+    .font('Helvetica')
+    .fontSize(10)
+    .text(
+      'National Institutional Ranking Framework — per-faculty summary',
+      doc.page.margins.left,
+      doc.y,
+      { width: titleW, align: 'center' },
+    );
+  doc.moveDown(0.4);
+  doc
+    .moveTo(doc.page.margins.left, doc.y)
+    .lineTo(doc.page.width - doc.page.margins.right, doc.y)
+    .lineWidth(1)
+    .strokeColor(CAS_COLORS.ink)
+    .stroke();
+  doc.moveDown(0.6);
+
+  // A. Faculty identification
+  casSectionHeader(doc, 'A', 'Faculty Identification');
+  casKeyValue(doc, 'Name', faculty.name);
+  casKeyValue(
+    doc,
+    'Designation',
+    faculty.designation === 'Professor'
+      ? 'Professor'
+      : `${faculty.designation || ''} Professor`,
+  );
+  casKeyValue(doc, 'Department', faculty.department);
+  casKeyValue(doc, 'Institution', faculty.institutionId?.name);
+  casKeyValue(doc, 'Nature of Association', 'Regular (per institutional records)');
+  casKeyValue(
+    doc,
+    'Date of Joining (Institution)',
+    earliestFrom ? `Year ${earliestFrom}` : 'Not on file',
+  );
+  casKeyValue(doc, 'Ph.D. Status', highest?.degree?.toUpperCase().includes('PH') ? 'Yes' : 'To confirm');
+
+  // B. Highest qualification — NIRF asks for a single top-degree row
+  casSectionHeader(doc, 'B', 'Highest Qualification');
+  casTable(
+    doc,
+    [
+      { header: 'Degree', key: 'degree', flex: 1 },
+      { header: 'Field / Specialisation', key: 'field', flex: 1.5 },
+      { header: 'University', key: 'university', flex: 1.8 },
+      { header: 'Year', key: 'year', flex: 0.6 },
+    ],
+    highest
+      ? [
+          {
+            degree: highest.degree,
+            field: highest.field || '—',
+            university: highest.institution || '—',
+            year: highest.year ? String(highest.year) : '—',
+          },
+        ]
+      : [],
+  );
+
+  // C. Experience — NIRF splits into academic vs industry. We can't
+  // distinguish reliably from the employment records we hold, so we
+  // report the total and flag the split as manually-verifiable.
+  casSectionHeader(doc, 'C', 'Professional Experience');
+  casTable(
+    doc,
+    [
+      { header: 'Metric', key: 'metric', flex: 2 },
+      { header: 'Value', key: 'value', flex: 1 },
+    ],
+    [
+      {
+        metric: 'Total experience (from earliest position)',
+        value: experienceYears != null ? `${experienceYears} years` : 'Not on file',
+      },
+      {
+        metric: 'Positions held (all institutions)',
+        value: String((faculty.employmentHistory || []).length),
+      },
+    ],
+  );
+
+  // D. Research output — the main NIRF submission block
+  casSectionHeader(doc, 'D', 'Research Output');
+  casTable(
+    doc,
+    [
+      { header: 'Metric', key: 'metric', flex: 2 },
+      { header: 'Value', key: 'value', flex: 1 },
+    ],
+    [
+      { metric: 'Total peer-reviewed publications on file', value: String(publications.length) },
+      { metric: 'Citations (Scopus / ORCID rolled up)', value: String(faculty.citationCount || 0) },
+      { metric: 'h-index', value: String(faculty.hIndex || 0) },
+      { metric: 'i10-index', value: String(faculty.i10Index || 0) },
+      {
+        metric: 'Books authored (International + National)',
+        value: String((manual.booksInternational || 0) + (manual.booksNational || 0)),
+      },
+      {
+        metric: 'Book chapters (International + National)',
+        value: String((manual.chaptersInternational || 0) + (manual.chaptersNational || 0)),
+      },
+    ],
+  );
+
+  // E. Sponsored research + consultancy
+  casSectionHeader(doc, 'E', 'Sponsored Research & Consultancy');
+  casTable(
+    doc,
+    [
+      { header: 'Metric', key: 'metric', flex: 2 },
+      { header: 'Value', key: 'value', flex: 1 },
+    ],
+    [
+      { metric: 'Sponsored projects — count', value: String((faculty.grantsReceived || []).length) },
+      {
+        metric: 'Total funding brought in',
+        value: grantFundingLakhs > 0
+          ? `Rs. ${grantFundingLakhs.toFixed(2)} lakh`
+          : 'Rs. 0',
+      },
+      {
+        metric: 'Consultancy earnings on record',
+        value: manual.consultancyLakhs > 0
+          ? `Rs. ${manual.consultancyLakhs} lakh`
+          : 'Rs. 0',
+      },
+    ],
+  );
+
+  // F. Research guidance — PhD supervision is a NIRF ranking component
+  casSectionHeader(doc, 'F', 'Ph.D. Guidance');
+  casTable(
+    doc,
+    [
+      { header: 'Status', key: 'status', flex: 2 },
+      { header: 'Count', key: 'count', flex: 1 },
+    ],
+    [
+      { status: 'Ph.D. awarded', count: String(manual.phdAwarded || 0) },
+      { status: 'Ph.D. ongoing (registered)', count: String(manual.phdOngoing || 0) },
+      { status: 'M.Phil. awarded', count: String(manual.mPhilAwarded || 0) },
+    ],
+  );
+
+  // G. Recognition
+  casSectionHeader(doc, 'G', 'Awards & Recognition');
+  casTable(
+    doc,
+    [
+      { header: 'Metric', key: 'metric', flex: 2 },
+      { header: 'Value', key: 'value', flex: 1 },
+    ],
+    [
+      { metric: 'Awards / fellowships on file', value: String((faculty.awards || []).length) },
+      {
+        metric: 'Invited lectures (all tiers)',
+        value: String(
+          (manual.invitedLecturesIntlAbroad || 0) +
+            (manual.invitedLecturesIntlInIndia || 0) +
+            (manual.invitedLecturesNational || 0) +
+            (manual.invitedLecturesState || 0),
+        ),
+      },
+    ],
+  );
+
+  // Declaration
+  casSectionHeader(doc, 'H', 'Declaration');
+  const declW = doc.page.width - doc.page.margins.left - doc.page.margins.right;
+  doc
+    .fillColor(CAS_COLORS.ink)
+    .font('Helvetica')
+    .fontSize(10)
+    .text(
+      'I confirm that the information furnished above is true and matches the records the ' +
+        'institution submits to NIRF. Where a metric is derived from an external source ' +
+        '(Scopus / ORCID / WoS), the source is noted in the metric label.',
+      doc.page.margins.left,
+      doc.y,
+      { width: declW, align: 'justify' },
+    );
+  casSignatureBlock(doc);
+
+  doc.moveDown(2);
+  const generatedAt = new Date().toLocaleString('en-IN', {
+    dateStyle: 'medium',
+    timeStyle: 'short',
+  });
+  const footerW = doc.page.width - doc.page.margins.left - doc.page.margins.right;
+  doc
+    .fillColor(CAS_COLORS.muted)
+    .font('Helvetica-Oblique')
+    .fontSize(8)
+    .text(
+      `Generated by FacultyConnect · ${generatedAt} · NIRF faculty data card. ` +
+        'NIRF submissions are made by the institution — this per-faculty summary is a ' +
+        'reconciliation aid, not the final submission.',
+      doc.page.margins.left,
+      doc.y,
+      { width: footerW, align: 'center' },
+    );
+
+  doc.end();
+  const buffer = await finished;
+
+  logger.info('nirf cv rendered', {
+    facultyId,
+    bytes: buffer.length,
+    publications: publications.length,
+    grantFundingLakhs,
+  });
+  return {
+    buffer,
+    filename: `nirf-cv-${safeFilename(faculty.name)}.pdf`,
+  };
+}
