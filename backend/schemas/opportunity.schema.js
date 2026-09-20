@@ -169,4 +169,8 @@ export const listOpportunitiesQuerySchema = z.object({
     .string()
     .optional()
     .transform(v => v === 'true'),
+  include_facets: z
+    .string()
+    .optional()
+    .transform(v => v === 'true'),
 });

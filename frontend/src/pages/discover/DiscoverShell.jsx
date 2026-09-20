@@ -19,6 +19,7 @@ import {
   Landmark,
   IndianRupee,
   Bell,
+  X,
 } from 'lucide-react';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
@@ -399,7 +400,7 @@ export default function DiscoverShell({ typeConfig, extraFilters }) {
   });
   const [pendingQuery, setPendingQuery] = useState('');
   const [pendingDomain, setPendingDomain] = useState('');
-  const [data, setData] = useState({ opportunities: [], total: 0, page: 1, totalPages: 1 });
+  const [data, setData] = useState({ opportunities: [], total: 0, page: 1, totalPages: 1, facets: null });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [bookmarkedIds, setBookmarkedIds] = useState(new Set());
@@ -468,6 +469,7 @@ export default function DiscoverShell({ typeConfig, extraFilters }) {
       state: isFdpOrConf && filters.state ? filters.state : undefined,
       city: isFdpOrConf && filters.city ? filters.city : undefined,
       cost_max: isFdpOrConf && filters.costMax !== '' ? filters.costMax : undefined,
+      include_facets: 'true',
     };
     if (filters.deadlineWithin) {
       const days = Number(filters.deadlineWithin);
@@ -582,6 +584,144 @@ export default function DiscoverShell({ typeConfig, extraFilters }) {
         : [...current, key];
       return { ...prev, [field]: next };
     });
+  };
+
+  // Active-filter chips — small removable pills above the results grid.
+  // Each chip is a { key, label, onRemove } tuple; the rendering loop
+  // stays type-agnostic so adding a new filter down the line only needs
+  // a new push here, not another UI branch.
+  const activeChips = useMemo(() => {
+    const chips = [];
+    const setField = (field, value) => setFilters(prev => ({ ...prev, [field]: value }));
+    const removeFromArray = (field, key) =>
+      setFilters(prev => ({
+        ...prev,
+        [field]: (prev[field] || []).filter(x => x !== key),
+      }));
+    if (filters.q) {
+      chips.push({
+        key: 'q',
+        label: `Search: "${filters.q}"`,
+        onRemove: () => {
+          setField('q', '');
+          setPendingQuery('');
+        },
+      });
+    }
+    if (filters.domain) {
+      chips.push({
+        key: 'domain',
+        label: `Domain: ${filters.domain}`,
+        onRemove: () => {
+          setField('domain', '');
+          setPendingDomain('');
+        },
+      });
+    }
+    if (filters.mode) {
+      chips.push({
+        key: 'mode',
+        label: `Mode: ${filters.mode}`,
+        onRemove: () => setField('mode', ''),
+      });
+    }
+    if (filters.cost) {
+      chips.push({
+        key: 'cost',
+        label: filters.cost === 'free' ? 'Free' : 'Paid',
+        onRemove: () => setField('cost', ''),
+      });
+    }
+    if (filters.deadlineWithin) {
+      const opt = DEADLINE_OPTIONS.find(o => o.value === filters.deadlineWithin);
+      chips.push({
+        key: 'deadline',
+        label: opt?.label || `Within ${filters.deadlineWithin}d`,
+        onRemove: () => setField('deadlineWithin', ''),
+      });
+    }
+    for (const key of filters.indexing || []) {
+      chips.push({
+        key: `indexing-${key}`,
+        label: INDEXING_META[key]?.short || key,
+        onRemove: () => removeFromArray('indexing', key),
+      });
+    }
+    if (filters.creditHoursMin) {
+      chips.push({
+        key: 'creditHoursMin',
+        label: `≥ ${filters.creditHoursMin} CPD hrs`,
+        onRemove: () => setField('creditHoursMin', ''),
+      });
+    }
+    if (filters.certificate === 'true') {
+      chips.push({
+        key: 'certificate',
+        label: 'Certificate',
+        onRemove: () => setField('certificate', ''),
+      });
+    }
+    for (const key of filters.agency || []) {
+      chips.push({
+        key: `agency-${key}`,
+        label: AGENCY_META[key]?.short || key,
+        onRemove: () => removeFromArray('agency', key),
+      });
+    }
+    if (filters.amountMax) {
+      const opt = AMOUNT_PRESETS.find(o => o.value === filters.amountMax);
+      chips.push({
+        key: 'amountMax',
+        label: opt?.label || `≤ ${filters.amountMax}`,
+        onRemove: () => setField('amountMax', ''),
+      });
+    }
+    for (const key of filters.careerStage || []) {
+      chips.push({
+        key: `careerStage-${key}`,
+        label: CAREER_STAGE_META[key]?.short || key,
+        onRemove: () => removeFromArray('careerStage', key),
+      });
+    }
+    if (filters.state) {
+      chips.push({
+        key: 'state',
+        label: filters.state,
+        onRemove: () => setField('state', ''),
+      });
+    }
+    if (filters.city) {
+      chips.push({
+        key: 'city',
+        label: `City: ${filters.city}`,
+        onRemove: () => setField('city', ''),
+      });
+    }
+    if (filters.costMax !== '') {
+      const opt = FEE_PRESETS.find(o => o.value === filters.costMax);
+      chips.push({
+        key: 'costMax',
+        label: opt?.label || `≤ ${filters.costMax}`,
+        onRemove: () => setField('costMax', ''),
+      });
+    }
+    return chips;
+  }, [filters]);
+
+  // Live facet counts from the backend. Rendered as a small subdued
+  // number on each filter option so users know how many results a pick
+  // would yield without having to try it. Numbers reflect the CURRENT
+  // filter combo (server re-runs aggregations on every list request
+  // — see computeFacets in the service).
+  const facets = data?.facets || {};
+  const count = (facetKey, value) => {
+    const n = facets[facetKey]?.[value];
+    if (!Number.isFinite(n)) return null;
+    return (
+      <span className="ml-auto text-[10px] text-text-muted tabular-nums font-normal">
+        {n}
+      </span>
+    );
   };
 
   // Auto-composed name for the save-search modal. Cheap summary of the
@@ -812,7 +952,8 @@ export default function DiscoverShell({ typeConfig, extraFilters }) {
                         onChange={() => setFilters(prev => ({ ...prev, mode: opt.value }))}
                         className="accent-primary"
                       />
-                      {opt.label}
+                      <span>{opt.label}</span>
+                      {opt.value && count('mode', opt.value)}
                     </label>
                   ))}
                 </div>
@@ -835,7 +976,8 @@ export default function DiscoverShell({ typeConfig, extraFilters }) {
                         onChange={() => setFilters(prev => ({ ...prev, cost: opt.value }))}
                         className="accent-primary"
                       />
-                      {opt.label}
+                      <span>{opt.label}</span>
+                      {opt.value && count('cost', opt.value)}
                     </label>
                   ))}
                 </div>
@@ -861,7 +1003,8 @@ export default function DiscoverShell({ typeConfig, extraFilters }) {
                             onChange={() => toggleIndexing(key)}
                             className="accent-primary"
                           />
-                          {INDEXING_META[key].long}
+                          <span>{INDEXING_META[key].long}</span>
+                          {count('indexing', key)}
                         </label>
                       );
                     })}
@@ -883,11 +1026,18 @@ export default function DiscoverShell({ typeConfig, extraFilters }) {
                       className="w-full h-10 rounded-md border border-border bg-white px-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
                     >
                       <option value="">Any state</option>
-                      {INDIAN_STATES.map(s => (
-                        <option key={s} value={s}>
-                          {s}
-                        </option>
-                      ))}
+                      {INDIAN_STATES.map(s => {
+                        // Inline count in the option label since <option>
+                        // can't hold arbitrary JSX; keeps the dropdown
+                        // scan-friendly ("Karnataka (3)") the same way
+                        // Amazon-style facet dropdowns do.
+                        const n = facets.state?.[s];
+                        return (
+                          <option key={s} value={s}>
+                            {Number.isFinite(n) ? `${s} (${n})` : s}
+                          </option>
+                        );
+                      })}
                     </select>
                     <p className="text-[10px] text-text-muted mt-1">
                       Only listings with a structured location (offline / hybrid) match.
@@ -994,7 +1144,8 @@ export default function DiscoverShell({ typeConfig, extraFilters }) {
                               onChange={() => toggleArrayFilter('agency', key)}
                               className="accent-primary"
                             />
-                            {AGENCY_META[key].long}
+                            <span>{AGENCY_META[key].long}</span>
+                            {count('agency', key)}
                           </label>
                         );
                       })}
@@ -1040,7 +1191,8 @@ export default function DiscoverShell({ typeConfig, extraFilters }) {
                               onChange={() => toggleArrayFilter('careerStage', key)}
                               className="accent-primary"
                             />
-                            {CAREER_STAGE_META[key].long}
+                            <span>{CAREER_STAGE_META[key].long}</span>
+                            {count('careerStage', key)}
                           </label>
                         );
                       })}
@@ -1061,6 +1213,36 @@ export default function DiscoverShell({ typeConfig, extraFilters }) {
         )}
 
         <section>
+          {/* Active-filter chip row — removable pills for every applied
+              filter plus a Clear all shortcut. Standard search UX,
+              lets users backtrack without hunting through the sidebar. */}
+          {activeChips.length > 0 && (
+            <div className="mb-4 flex items-center gap-2 flex-wrap">
+              <span className="text-xs font-semibold uppercase tracking-wider text-text-muted">
+                Filters:
+              </span>
+              {activeChips.map(chip => (
+                <button
+                  key={chip.key}
+                  onClick={chip.onRemove}
+                  className="inline-flex items-center gap-1 rounded-full bg-primary/10 text-primary border border-primary/30 pl-3 pr-1.5 py-0.5 text-xs font-semibold hover:bg-primary/15"
+                  title="Remove filter"
+                >
+                  {chip.label}
+                  <span className="inline-flex items-center justify-center w-4 h-4 rounded-full hover:bg-primary/20">
+                    <X size={10} />
+                  </span>
+                </button>
+              ))}
+              <button
+                onClick={clearFilters}
+                className="ml-1 text-xs font-semibold text-text-muted hover:text-danger underline"
+              >
+                Clear all
+              </button>
+            </div>
+          )}
+
           {loading && <SkeletonList count={4} cardLines={4} />}
 
           {!loading && data.opportunities.length === 0 && (

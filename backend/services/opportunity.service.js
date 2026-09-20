@@ -49,6 +49,7 @@ export async function listOpportunities(filters, { viewerId } = {}) {
     page,
     limit,
     include_expired: includeExpired,
+    include_facets: includeFacets,
   } = filters;
 
   const query = { status: 'live' };
@@ -172,6 +173,16 @@ export async function listOpportunities(filters, { viewerId } = {}) {
     ]);
   }
 
+  // Facet counts. Same base query as the list itself, so numbers reflect
+  // what a user would actually see if they added each option to their
+  // current filter combo — not the raw corpus total. Simple $group per
+  // facet keeps it easy to reason about; if we outgrow this, promote to
+  // a single $facet pipeline that returns everything in one round-trip.
+  let facets = null;
+  if (includeFacets) {
+    facets = await computeFacets(query);
+  }
+
   return {
     // matchedTags surfaces on every card whenever the viewer has domain
     // tags — not only under the domain_match sort — so a card can show
@@ -184,6 +195,65 @@ export async function listOpportunities(filters, { viewerId } = {}) {
     limit,
     total,
     totalPages: Math.max(1, Math.ceil(total / limit)),
+    ...(facets ? { facets } : {}),
+  };
+}
+
+/**
+ * Aggregate per-value counts for the multi-select filters that benefit
+ * from live counts on the Discover sidebar. Simple $group per facet:
+ * mode / cost buckets / indexing (unwind) / agency / careerStage
+ * (unwind) / state. Domain / city / cost_max / credit_hours_min are
+ * free-text or range filters and don't get facets.
+ */
+async function computeFacets(baseQuery) {
+  const [mode, indexing, agency, careerStage, state, costBuckets] = await Promise.all([
+    Opportunity.aggregate([
+      { $match: baseQuery },
+      { $group: { _id: '$mode', c: { $sum: 1 } } },
+    ]),
+    Opportunity.aggregate([
+      { $match: baseQuery },
+      { $unwind: '$indexing' },
+      { $group: { _id: '$indexing', c: { $sum: 1 } } },
+    ]),
+    Opportunity.aggregate([
+      { $match: baseQuery },
+      { $match: { agency: { $ne: null } } },
+      { $group: { _id: '$agency', c: { $sum: 1 } } },
+    ]),
+    Opportunity.aggregate([
+      { $match: baseQuery },
+      { $unwind: '$careerStage' },
+      { $group: { _id: '$careerStage', c: { $sum: 1 } } },
+    ]),
+    Opportunity.aggregate([
+      { $match: baseQuery },
+      { $match: { state: { $ne: null } } },
+      { $group: { _id: '$state', c: { $sum: 1 } } },
+    ]),
+    Opportunity.aggregate([
+      { $match: baseQuery },
+      {
+        $group: {
+          _id: null,
+          free: { $sum: { $cond: [{ $eq: ['$cost', 0] }, 1, 0] } },
+          paid: { $sum: { $cond: [{ $gt: ['$cost', 0] }, 1, 0] } },
+        },
+      },
+    ]),
+  ]);
+
+  const toMap = rows => Object.fromEntries(rows.map(r => [r._id, r.c]));
+  return {
+    mode: toMap(mode),
+    indexing: toMap(indexing),
+    agency: toMap(agency),
+    careerStage: toMap(careerStage),
+    state: toMap(state),
+    cost: costBuckets[0]
+      ? { free: costBuckets[0].free, paid: costBuckets[0].paid }
+      : { free: 0, paid: 0 },
   };
 }
 
