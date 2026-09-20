@@ -640,6 +640,7 @@ export default function DiscoverShell({ typeConfig, extraFilters }) {
       deadlineWithin: '',
       sort: 'newest',
       indexing: [],
+      quartile: [],
       creditHoursMin: '',
       certificate: '',
       agency: [],
@@ -765,6 +766,7 @@ export default function DiscoverShell({ typeConfig, extraFilters }) {
       deadlineWithin: '',
       sort: 'newest',
       indexing: [],
+      quartile: [],
       creditHoursMin: '',
       certificate: '',
       agency: [],
@@ -1312,7 +1314,7 @@ export default function DiscoverShell({ typeConfig, extraFilters }) {
                   </div>
                   <div className="space-y-1">
                     {QUARTILE_ORDER.map(key => {
-                      const checked = filters.quartile.includes(key);
+                      const checked = filters.quartile?.includes(key) || false;
                       return (
                         <label
                           key={key}
