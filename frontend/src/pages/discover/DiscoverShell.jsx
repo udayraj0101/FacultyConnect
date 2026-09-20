@@ -477,7 +477,13 @@ export default function DiscoverShell({ typeConfig, extraFilters }) {
     }
     listOpportunities(query)
       .then(result => {
-        if (!cancelled) setData(result);
+        if (!cancelled) {
+          setData(result);
+          // Clear any stale error banner from a previous request — a
+          // successful load means whatever caused the earlier failure
+          // (bad filter value, race, transient) is no longer relevant.
+          setError('');
+        }
       })
       .catch(err => {
         if (!cancelled)
