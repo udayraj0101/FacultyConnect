@@ -207,37 +207,53 @@ export default function DirectoryProfile() {
         }
       />
 
-      {/* Metrics */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
-        <StatCard
-          index={0}
-          icon={<Quote size={20} />}
-          color="#6C5CE7"
-          value={profile.citationCount}
-          label="Citations"
-        />
-        <StatCard
-          index={1}
-          icon={<TrendingUp size={20} />}
-          color="#00B894"
-          value={profile.hIndex}
-          label="h-index"
-        />
-        <StatCard
-          index={2}
-          icon={<Award size={20} />}
-          color="#F59E0B"
-          value={profile.i10Index}
-          label="i10-index"
-        />
-        <StatCard
-          index={3}
-          icon={<FileText size={20} />}
-          color="#1A237E"
-          value={profile.publicationCount}
-          label="Publications"
-        />
-      </div>
+      {/* Metrics (FC-05) — h-index of 18 with zero publications on file looks
+          broken to a visitor. When the derived counters are non-zero but the
+          publication list is empty (e.g. ORCID has metrics but no works
+          available), replace the number with a dash and caveat the sublabel
+          instead of shipping the mismatch. */}
+      {(() => {
+        const derivedUnreconciled =
+          profile.publicationCount === 0 &&
+          (profile.citationCount || profile.hIndex || profile.i10Index);
+        const val = raw => (derivedUnreconciled ? '—' : raw ?? 0);
+        const sublabel = derivedUnreconciled ? 'Awaiting publications' : undefined;
+        return (
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
+            <StatCard
+              index={0}
+              icon={<Quote size={20} />}
+              color="#6C5CE7"
+              value={val(profile.citationCount)}
+              label="Citations"
+              sublabel={sublabel}
+            />
+            <StatCard
+              index={1}
+              icon={<TrendingUp size={20} />}
+              color="#00B894"
+              value={val(profile.hIndex)}
+              label="h-index"
+              sublabel={sublabel}
+            />
+            <StatCard
+              index={2}
+              icon={<Award size={20} />}
+              color="#F59E0B"
+              value={val(profile.i10Index)}
+              label="i10-index"
+              sublabel={sublabel}
+            />
+            <StatCard
+              index={3}
+              icon={<FileText size={20} />}
+              color="#1A237E"
+              value={profile.publicationCount}
+              label="Publications"
+            />
+          </div>
+        );
+      })()}
 
       {/* ABOUT — bio + external links */}
       {(profile.bio || populatedLinks.length > 0) && (
