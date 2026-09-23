@@ -63,7 +63,12 @@ app.use(
       if (!origin) return cb(null, true);
       if (allowedOrigins.includes(origin)) return cb(null, true);
       logger.warn('cors origin denied', { origin });
-      return cb(new Error('Not allowed by CORS'));
+      // Return false (deny) instead of throwing — throwing cascades to the
+      // global error handler and surfaces as a 500 to the caller, which is
+      // both ugly and misleading (the browser was going to block the read
+      // anyway on a missing Access-Control-Allow-Origin). false = no CORS
+      // headers set, request still runs, browser prevents cross-origin read.
+      return cb(null, false);
     },
     credentials: true,
   }),
