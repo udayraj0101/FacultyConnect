@@ -15,6 +15,8 @@ import {
   setJobStatusHandler,
   updateJobHandler,
   deleteJobHandler,
+  getApplicantProfileHandler,
+  getApplicantCvHandler,
 } from '../controllers/job.controller.js';
 
 const router = Router();
@@ -78,6 +80,23 @@ router.patch(
   requireRole('CollegeAdmin', 'PlatformAdmin'),
   validateParams(jobAndApplicantParamSchema),
   updateApplicationStatusHandler,
+);
+// Admin-scoped applicant review. Ownership check is inside the service;
+// both routes reuse the same jobAndApplicantParamSchema for id + appId
+// validation.
+router.get(
+  '/:id/applicants/:appId/profile',
+  authenticate,
+  requireRole('CollegeAdmin', 'PlatformAdmin'),
+  validateParams(jobAndApplicantParamSchema),
+  getApplicantProfileHandler,
+);
+router.get(
+  '/:id/applicants/:appId/cv',
+  authenticate,
+  requireRole('CollegeAdmin', 'PlatformAdmin'),
+  validateParams(jobAndApplicantParamSchema),
+  getApplicantCvHandler,
 );
 
 export default router;

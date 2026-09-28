@@ -75,6 +75,41 @@ export async function listApplicantsHandler(req, res) {
   }
 }
 
+export async function getApplicantProfileHandler(req, res) {
+  try {
+    const profile = await jobService.getApplicantProfile(
+      req.params.id,
+      req.params.appId,
+      req.user.id,
+    );
+    return res.status(200).json({ profile });
+  } catch (error) {
+    return res.status(error.status || 500).json({
+      error: { code: error.code || 'APPLICANT_PROFILE_FAILED', message: error.message },
+    });
+  }
+}
+
+export async function getApplicantCvHandler(req, res) {
+  try {
+    const template = String(req.query.template || 'generic').toLowerCase();
+    const { buffer, filename } = await jobService.getApplicantCv(
+      req.params.id,
+      req.params.appId,
+      req.user.id,
+      template,
+    );
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.setHeader('Content-Length', buffer.length);
+    return res.status(200).send(buffer);
+  } catch (error) {
+    return res.status(error.status || 500).json({
+      error: { code: error.code || 'APPLICANT_CV_FAILED', message: error.message },
+    });
+  }
+}
+
 export async function updateApplicationStatusHandler(req, res) {
   const parsed = applicationStatusSchema.safeParse(req.body);
   if (!parsed.success) {

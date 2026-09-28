@@ -65,3 +65,32 @@ export async function deleteJob(id, { hard = false } = {}) {
   });
   return data;
 }
+
+// Admin-scoped applicant review — returns the same shape as PublicProfile
+// bypassing the publicProfileEnabled opt-in gate (applying is implicit
+// consent for the posting admin). Contact fields included.
+export async function getApplicantProfile(jobId, appId) {
+  const { data } = await api.get(`/jobs/${jobId}/applicants/${appId}/profile`);
+  return data.profile;
+}
+
+// Server streams a PDF; we save it via an object URL. Same trigger
+// pattern as the faculty self-download in faculty.service.js so the
+// browser prompts a Save-As instead of navigating.
+export async function downloadApplicantCv(jobId, appId, template = 'generic') {
+  const response = await api.get(`/jobs/${jobId}/applicants/${appId}/cv`, {
+    responseType: 'blob',
+    params: template && template !== 'generic' ? { template } : undefined,
+  });
+  const disposition = response.headers['content-disposition'] || '';
+  const match = disposition.match(/filename="?([^";]+)"?/i);
+  const filename = match ? match[1] : 'applicant-cv.pdf';
+  const url = window.URL.createObjectURL(response.data);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  window.URL.revokeObjectURL(url);
+}

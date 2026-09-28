@@ -2,7 +2,14 @@ import { Job } from '../models/Job.js';
 import { Application } from '../models/Application.js';
 import { Institution } from '../models/Institution.js';
 import { Faculty } from '../models/Faculty.js';
+import { Publication } from '../models/Publication.js';
 import { notify } from './notification.service.js';
+import {
+  renderFacultyCv,
+  renderUgcCasCv,
+  renderAicteCv,
+  renderNirfCv,
+} from './cv.service.js';
 import { createLogger } from '../utils/logger.js';
 
 const logger = createLogger('job');
@@ -185,6 +192,89 @@ export async function updateApplicationStatus(jobId, applicationId, { status, no
   }
 
   return populated;
+}
+
+/**
+ * Ownership guard for admin-scoped applicant lookups. Extracted because
+ * both the profile view and the CV export need the exact same check —
+ * requester must be a PlatformAdmin OR a CollegeAdmin whose institution
+ * matches the job's institution. Returns the loaded { job, application }
+ * pair with the applicant populated so callers don't re-query.
+ */
+async function loadApplicantForAdmin(jobId, applicationId, requesterId) {
+  const job = await getJobById(jobId);
+  const requester = await Faculty.findById(requesterId);
+  const isPlatformAdmin = requester?.role === 'PlatformAdmin';
+  const ownsJob =
+    requester?.role === 'CollegeAdmin' &&
+    requester?.institutionId?.toString() === job.institutionId._id.toString();
+  if (!isPlatformAdmin && !ownsJob) {
+    const err = new Error('You can only view applicants for jobs posted by your institution');
+    err.code = 'FORBIDDEN';
+    err.status = 403;
+    throw err;
+  }
+  const application = await Application.findOne({ _id: applicationId, jobId }).populate({
+    path: 'facultyId',
+    populate: { path: 'institutionId', select: 'name domain verificationStatus' },
+  });
+  if (!application || !application.facultyId) {
+    const err = new Error('Applicant not found for this job');
+    err.code = 'APPLICATION_NOT_FOUND';
+    err.status = 404;
+    throw err;
+  }
+  return { job, application };
+}
+
+/**
+ * Full applicant profile for the admin review card. Same shape as the
+ * public profile (professional data + publications) but explicitly
+ * bypasses the `publicProfileEnabled` opt-in gate: applying to a job
+ * is implicit consent for the posting admin to review the profile.
+ * Contact fields (email, phone) ARE included — they need them to reach
+ * out about the application.
+ */
+export async function getApplicantProfile(jobId, applicationId, requesterId) {
+  const { application } = await loadApplicantForAdmin(jobId, applicationId, requesterId);
+  const applicant = application.facultyId;
+  const publications = await Publication.find({ facultyId: applicant._id })
+    .sort({ year: -1, createdAt: -1 })
+    .limit(20);
+  const publicationCount = await Publication.countDocuments({ facultyId: applicant._id });
+  const directory = applicant.toDirectoryJSON();
+  return {
+    ...directory,
+    email: applicant.email,
+    phone: applicant.phone || '',
+    publicationCount,
+    publications: publications.map(p => p.toPublicJSON()),
+    application: {
+      id: application._id.toString(),
+      status: application.status,
+      appliedAt: application.appliedAt,
+      notes: application.notes || '',
+    },
+  };
+}
+
+const CV_TEMPLATES = {
+  generic: renderFacultyCv,
+  ugc_cas9: renderUgcCasCv,
+  aicte: renderAicteCv,
+  nirf: renderNirfCv,
+};
+
+/**
+ * Render an applicant's CV as PDF for the reviewing admin. Same
+ * ownership guard as getApplicantProfile. Delegates the actual layout
+ * to cv.service.js — this function just resolves the applicant, picks
+ * the template, and returns the buffer for the controller to stream.
+ */
+export async function getApplicantCv(jobId, applicationId, requesterId, template = 'generic') {
+  const { application } = await loadApplicantForAdmin(jobId, applicationId, requesterId);
+  const renderer = CV_TEMPLATES[template] || CV_TEMPLATES.generic;
+  return renderer(application.facultyId._id);
 }
 
 export async function listMyApplications(facultyId) {

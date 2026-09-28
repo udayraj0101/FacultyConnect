@@ -1,9 +1,15 @@
 import React, { useEffect, useState } from 'react';
-import { KanbanSquare } from 'lucide-react';
+import { KanbanSquare, Eye, Download, Loader2 } from 'lucide-react';
 import SectionCard from '../dashboard/SectionCard';
 import EmptyState from '../ui/EmptyState';
 import { Alert, AlertDescription } from '../ui/Alert';
-import { listJobs, listApplicants, updateApplicationStatus } from '../../services/job.service';
+import {
+  listJobs,
+  listApplicants,
+  updateApplicationStatus,
+  downloadApplicantCv,
+} from '../../services/job.service';
+import ApplicantProfileModal from './ApplicantProfileModal';
 
 const COLUMNS = [
   { key: 'applied', label: 'Applied', tone: 'bg-primary/5 border-primary/20' },
@@ -22,8 +28,9 @@ function initialsOf(name) {
     .toUpperCase();
 }
 
-function ApplicantCard({ application, jobId, onMoved }) {
+function ApplicantCard({ application, jobId, onMoved, onOpenProfile }) {
   const [busy, setBusy] = useState(false);
+  const [downloadingCv, setDownloadingCv] = useState(false);
   const [error, setError] = useState('');
   const fac = application.faculty;
 
@@ -38,6 +45,19 @@ function ApplicantCard({ application, jobId, onMoved }) {
       setError(err.response?.data?.error?.message || 'Move failed');
     } finally {
       setBusy(false);
+    }
+  };
+
+  const onCvDownload = async () => {
+    if (downloadingCv) return;
+    setDownloadingCv(true);
+    setError('');
+    try {
+      await downloadApplicantCv(jobId, application.id);
+    } catch (err) {
+      setError(err.response?.data?.error?.message || 'CV download failed');
+    } finally {
+      setDownloadingCv(false);
     }
   };
 
@@ -57,16 +77,6 @@ function ApplicantCard({ application, jobId, onMoved }) {
               : `${fac?.designation || ''} Professor`.trim()}
           </div>
         </div>
-        {fac?.orcidId && (
-          <a
-            href={`https://sandbox.orcid.org/${fac.orcidId}`}
-            target="_blank"
-            rel="noreferrer"
-            className="text-[10px] text-primary underline shrink-0"
-          >
-            ORCID
-          </a>
-        )}
       </div>
 
       {fac?.domainTags?.length > 0 && (
@@ -95,6 +105,28 @@ function ApplicantCard({ application, jobId, onMoved }) {
 
       {error && <div className="text-[11px] text-danger">{error}</div>}
 
+      {/* Review actions — in-app profile + CV replace the old external
+          ORCID link. External ORCID / DOI links still surface inside
+          the profile drawer for admins who want them. */}
+      <div className="grid grid-cols-2 gap-1.5">
+        <button
+          type="button"
+          onClick={() => onOpenProfile(application.id)}
+          className="inline-flex items-center justify-center gap-1 rounded-md border border-primary/40 text-primary hover:bg-primary/5 text-[11px] font-semibold px-2 py-1 transition-colors"
+        >
+          <Eye size={11} /> Profile
+        </button>
+        <button
+          type="button"
+          onClick={onCvDownload}
+          disabled={downloadingCv}
+          className="inline-flex items-center justify-center gap-1 rounded-md border border-border hover:bg-muted text-text-light text-[11px] font-semibold px-2 py-1 transition-colors disabled:opacity-60"
+        >
+          {downloadingCv ? <Loader2 size={11} className="animate-spin" /> : <Download size={11} />}
+          {downloadingCv ? 'Wait…' : 'CV'}
+        </button>
+      </div>
+
       <select
         value={application.status}
         onChange={e => move(e.target.value)}
@@ -117,6 +149,7 @@ export default function ApplicantsKanban({ initialJobId = '' }) {
   const [applications, setApplications] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [openApplicationId, setOpenApplicationId] = useState(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -238,6 +271,7 @@ export default function ApplicantsKanban({ initialJobId = '' }) {
                   application={app}
                   jobId={selectedJobId}
                   onMoved={onMoved}
+                  onOpenProfile={setOpenApplicationId}
                 />
               ))}
               {groupedByStatus[col.key].length === 0 && (
@@ -248,6 +282,14 @@ export default function ApplicantsKanban({ initialJobId = '' }) {
             </div>
           ))}
         </div>
+      )}
+
+      {openApplicationId && (
+        <ApplicantProfileModal
+          jobId={selectedJobId}
+          applicationId={openApplicationId}
+          onClose={() => setOpenApplicationId(null)}
+        />
       )}
     </SectionCard>
   );
