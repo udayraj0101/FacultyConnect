@@ -15,10 +15,17 @@ import {
   Download,
   Loader2,
   ExternalLink,
+  Star,
+  Trash2,
+  Save,
 } from 'lucide-react';
 import { Alert, AlertDescription } from '../ui/Alert';
 import { Button } from '../ui/Button';
-import { getApplicantProfile, downloadApplicantCv } from '../../services/job.service';
+import {
+  getApplicantProfile,
+  downloadApplicantCv,
+  saveApplicantReview,
+} from '../../services/job.service';
 
 // CV templates available server-side (see backend/services/cv.service.js).
 // Labels stay short so the dropdown doesn't wrap; the tooltip / description
@@ -102,6 +109,15 @@ export default function ApplicantProfileModal({ jobId, applicationId, onClose })
   const [downloadingTemplate, setDownloadingTemplate] = useState('');
   const [selectedTemplate, setSelectedTemplate] = useState('generic');
   const [downloadError, setDownloadError] = useState('');
+  // Review form state — shared notes + this reviewer's rating/comment.
+  // Initialised from the profile payload once it loads; edits live in
+  // local state until Save posts them back to the server.
+  const [notesDraft, setNotesDraft] = useState('');
+  const [ratingDraft, setRatingDraft] = useState(0);
+  const [commentDraft, setCommentDraft] = useState('');
+  const [savingReview, setSavingReview] = useState(false);
+  const [reviewError, setReviewError] = useState('');
+  const [reviewSaved, setReviewSaved] = useState(false);
 
   useEffect(() => {
     if (!jobId || !applicationId) return;
@@ -110,7 +126,12 @@ export default function ApplicantProfileModal({ jobId, applicationId, onClose })
     setError('');
     getApplicantProfile(jobId, applicationId)
       .then(data => {
-        if (!cancelled) setProfile(data);
+        if (!cancelled) {
+          setProfile(data);
+          setNotesDraft(data.application?.notes || '');
+          setRatingDraft(data.application?.myScorecard?.rating || 0);
+          setCommentDraft(data.application?.myScorecard?.comment || '');
+        }
       })
       .catch(err => {
         if (!cancelled) {
@@ -143,6 +164,85 @@ export default function ApplicantProfileModal({ jobId, applicationId, onClose })
       setDownloadError(err.response?.data?.error?.message || 'CV download failed');
     } finally {
       setDownloadingTemplate('');
+    }
+  };
+
+  // Merge the fresh application payload back into the loaded profile so
+  // the UI reflects new scorecards / average without a full refetch.
+  const mergeReviewResponse = updatedApp => {
+    setProfile(prev =>
+      prev
+        ? {
+            ...prev,
+            application: {
+              ...prev.application,
+              notes: updatedApp.notes || '',
+              scorecards: updatedApp.scorecards || [],
+              ratingCount: updatedApp.ratingCount ?? 0,
+              averageRating: updatedApp.averageRating ?? null,
+              myScorecard:
+                (updatedApp.scorecards || []).find(
+                  sc => sc.reviewerId === prev.currentReviewerId,
+                ) || null,
+            },
+          }
+        : prev,
+    );
+  };
+
+  const onSaveReview = async () => {
+    if (savingReview) return;
+    setSavingReview(true);
+    setReviewError('');
+    setReviewSaved(false);
+    try {
+      const payload = {};
+      const notesTrimmed = notesDraft.trim();
+      const priorNotes = (profile.application?.notes || '').trim();
+      if (notesTrimmed !== priorNotes) payload.notes = notesTrimmed;
+      if (ratingDraft > 0) {
+        payload.rating = ratingDraft;
+        if ((commentDraft || '').trim() !== (profile.application?.myScorecard?.comment || '').trim()) {
+          payload.comment = commentDraft.trim();
+        }
+      }
+      if (Object.keys(payload).length === 0) {
+        setReviewError('Nothing to save.');
+        setSavingReview(false);
+        return;
+      }
+      const updated = await saveApplicantReview(jobId, applicationId, payload);
+      const myFresh = (updated.scorecards || []).find(
+        sc => sc.reviewerId === profile.currentReviewerId,
+      );
+      // Reset drafts to server truth so subsequent edits diff cleanly.
+      setNotesDraft(updated.notes || '');
+      setRatingDraft(myFresh?.rating || 0);
+      setCommentDraft(myFresh?.comment || '');
+      mergeReviewResponse(updated);
+      setReviewSaved(true);
+      // Auto-clear the "saved" toast after 2s so it doesn't linger.
+      setTimeout(() => setReviewSaved(false), 2000);
+    } catch (err) {
+      setReviewError(err.response?.data?.error?.message || 'Could not save review.');
+    } finally {
+      setSavingReview(false);
+    }
+  };
+
+  const onRemoveMyScorecard = async () => {
+    if (savingReview) return;
+    setSavingReview(true);
+    setReviewError('');
+    try {
+      const updated = await saveApplicantReview(jobId, applicationId, { removeMyScorecard: true });
+      setRatingDraft(0);
+      setCommentDraft('');
+      mergeReviewResponse(updated);
+    } catch (err) {
+      setReviewError(err.response?.data?.error?.message || 'Could not remove your scorecard.');
+    } finally {
+      setSavingReview(false);
     }
   };
 
@@ -297,6 +397,166 @@ export default function ApplicantProfileModal({ jobId, applicationId, onClose })
                   </div>
                 );
               })()}
+
+              {/* Review — shared notes + this reviewer's scorecard.
+                  Placed above the profile content so it's the first
+                  thing an admin sees when they open the drawer. */}
+              <SectionHeading>Committee review</SectionHeading>
+              <div className="rounded-lg border border-primary/20 bg-primary/5 p-4 space-y-3">
+                {reviewError && (
+                  <Alert variant="destructive">
+                    <AlertDescription>{reviewError}</AlertDescription>
+                  </Alert>
+                )}
+                {reviewSaved && (
+                  <div className="text-xs text-success font-semibold">Saved.</div>
+                )}
+                {/* Aggregate rating strip */}
+                <div className="flex items-center justify-between gap-3 flex-wrap">
+                  <div className="flex items-center gap-1.5 text-xs text-text-muted">
+                    <span className="font-semibold text-text-light">
+                      Committee rating:
+                    </span>
+                    {profile.application?.ratingCount > 0 ? (
+                      <>
+                        <span className="font-bold text-primary tabular-nums">
+                          {profile.application.averageRating?.toFixed(1)} / 5
+                        </span>
+                        <span>({profile.application.ratingCount} reviewer{profile.application.ratingCount === 1 ? '' : 's'})</span>
+                      </>
+                    ) : (
+                      <span className="italic">No ratings yet</span>
+                    )}
+                  </div>
+                </div>
+
+                {/* Star rating input for this reviewer */}
+                <div>
+                  <div className="text-[11px] uppercase tracking-wider text-text-muted font-semibold mb-1.5">
+                    Your rating
+                  </div>
+                  <div className="flex items-center gap-1">
+                    {[1, 2, 3, 4, 5].map(n => (
+                      <button
+                        key={n}
+                        type="button"
+                        onClick={() => setRatingDraft(n === ratingDraft ? 0 : n)}
+                        disabled={savingReview}
+                        aria-label={`Set rating to ${n} out of 5`}
+                        className="p-0.5 transition-transform hover:scale-110 disabled:opacity-60"
+                      >
+                        <Star
+                          size={22}
+                          className={
+                            n <= ratingDraft
+                              ? 'fill-yellow-400 text-yellow-500'
+                              : 'text-text-muted'
+                          }
+                        />
+                      </button>
+                    ))}
+                    {ratingDraft > 0 && (
+                      <span className="ml-2 text-xs text-text-muted">
+                        {ratingDraft} / 5
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                {/* This reviewer's comment */}
+                <div>
+                  <div className="text-[11px] uppercase tracking-wider text-text-muted font-semibold mb-1.5">
+                    Your comment <span className="opacity-70">(optional)</span>
+                  </div>
+                  <textarea
+                    rows={2}
+                    value={commentDraft}
+                    onChange={e => setCommentDraft(e.target.value)}
+                    disabled={savingReview}
+                    placeholder="Strengths, gaps, questions for interview…"
+                    className="w-full text-sm rounded-md border border-border bg-white px-3 py-2 focus:outline-none focus:ring-1 focus:ring-primary"
+                  />
+                </div>
+
+                {/* Shared notes — visible/editable by all reviewers */}
+                <div>
+                  <div className="text-[11px] uppercase tracking-wider text-text-muted font-semibold mb-1.5">
+                    Shared notes <span className="opacity-70">(all reviewers see this)</span>
+                  </div>
+                  <textarea
+                    rows={2}
+                    value={notesDraft}
+                    onChange={e => setNotesDraft(e.target.value)}
+                    disabled={savingReview}
+                    placeholder="Committee-level notes about this applicant…"
+                    className="w-full text-sm rounded-md border border-border bg-white px-3 py-2 focus:outline-none focus:ring-1 focus:ring-primary"
+                  />
+                </div>
+
+                <div className="flex items-center justify-between gap-2 flex-wrap pt-1">
+                  {profile.application?.myScorecard && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={onRemoveMyScorecard}
+                      disabled={savingReview}
+                      className="border-danger/40 text-danger hover:bg-danger/5"
+                    >
+                      <Trash2 size={12} className="mr-1" /> Remove my rating
+                    </Button>
+                  )}
+                  <div className="flex-1" />
+                  <Button
+                    type="button"
+                    size="sm"
+                    onClick={onSaveReview}
+                    disabled={savingReview}
+                  >
+                    {savingReview ? (
+                      <>
+                        <Loader2 size={12} className="mr-1 animate-spin" /> Saving…
+                      </>
+                    ) : (
+                      <>
+                        <Save size={12} className="mr-1" /> Save review
+                      </>
+                    )}
+                  </Button>
+                </div>
+
+                {/* Other reviewers' scorecards */}
+                {profile.application?.scorecards?.length > 0 && (
+                  <div className="pt-2 border-t border-primary/15">
+                    <div className="text-[11px] uppercase tracking-wider text-text-muted font-semibold mb-2">
+                      All ratings
+                    </div>
+                    <ul className="space-y-2">
+                      {profile.application.scorecards.map(sc => (
+                        <li key={sc.id} className="text-xs">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="font-semibold text-text-light">
+                              {sc.reviewerName || 'Reviewer'}
+                            </span>
+                            <span className="inline-flex items-center gap-0.5 text-yellow-600 font-semibold tabular-nums">
+                              <Star size={11} className="fill-yellow-400 text-yellow-500" />
+                              {sc.rating}/5
+                            </span>
+                            <span className="text-text-muted">
+                              · {new Date(sc.updatedAt).toLocaleDateString()}
+                            </span>
+                          </div>
+                          {sc.comment && (
+                            <p className="text-text-muted mt-0.5 pl-3 border-l border-border leading-relaxed">
+                              {sc.comment}
+                            </p>
+                          )}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </div>
 
               {/* Bio */}
               {profile.bio && (

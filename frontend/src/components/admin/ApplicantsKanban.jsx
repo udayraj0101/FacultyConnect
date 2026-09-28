@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { KanbanSquare, Eye, Download, Loader2 } from 'lucide-react';
+import { KanbanSquare, Eye, Download, Loader2, Star, MessageSquare } from 'lucide-react';
 import SectionCard from '../dashboard/SectionCard';
 import EmptyState from '../ui/EmptyState';
 import { Alert, AlertDescription } from '../ui/Alert';
@@ -99,8 +99,25 @@ function ApplicantCard({ application, jobId, onMoved, onOpenProfile }) {
           </>
         )}
       </div>
-      <div className="text-[11px] text-text-muted">
-        Applied {new Date(application.appliedAt).toLocaleDateString()}
+      <div className="text-[11px] text-text-muted flex items-center gap-2 flex-wrap">
+        <span>Applied {new Date(application.appliedAt).toLocaleDateString()}</span>
+        {application.ratingCount > 0 && (
+          <span className="inline-flex items-center gap-0.5 text-yellow-600 font-semibold tabular-nums">
+            <Star size={10} className="fill-yellow-400 text-yellow-500" />
+            {application.averageRating?.toFixed(1)}
+            <span className="text-text-muted font-normal">
+              ({application.ratingCount})
+            </span>
+          </span>
+        )}
+        {application.notes && (
+          <span
+            className="inline-flex items-center text-primary"
+            title="Committee notes on file"
+          >
+            <MessageSquare size={10} />
+          </span>
+        )}
       </div>
 
       {error && <div className="text-[11px] text-danger">{error}</div>}

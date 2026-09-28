@@ -17,6 +17,7 @@ import {
   deleteJobHandler,
   getApplicantProfileHandler,
   getApplicantCvHandler,
+  saveApplicantReviewHandler,
 } from '../controllers/job.controller.js';
 
 const router = Router();
@@ -97,6 +98,13 @@ router.get(
   requireRole('CollegeAdmin', 'PlatformAdmin'),
   validateParams(jobAndApplicantParamSchema),
   getApplicantCvHandler,
+);
+router.patch(
+  '/:id/applicants/:appId/review',
+  authenticate,
+  requireRole('CollegeAdmin', 'PlatformAdmin'),
+  validateParams(jobAndApplicantParamSchema),
+  saveApplicantReviewHandler,
 );
 
 export default router;

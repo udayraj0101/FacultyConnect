@@ -4,6 +4,7 @@ import {
   updateJobSchema,
   listJobsQuerySchema,
   applicationStatusSchema,
+  applicationReviewSchema,
 } from '../schemas/job.schema.js';
 
 export async function createHandler(req, res) {
@@ -86,6 +87,29 @@ export async function getApplicantProfileHandler(req, res) {
   } catch (error) {
     return res.status(error.status || 500).json({
       error: { code: error.code || 'APPLICANT_PROFILE_FAILED', message: error.message },
+    });
+  }
+}
+
+export async function saveApplicantReviewHandler(req, res) {
+  const parsed = applicationReviewSchema.safeParse(req.body);
+  if (!parsed.success) {
+    const details = parsed.error.issues.map(i => ({ path: i.path.join('.'), message: i.message }));
+    return res.status(400).json({
+      error: { code: 'VALIDATION_ERROR', message: 'Invalid body', details },
+    });
+  }
+  try {
+    const app = await jobService.saveApplicantReview(
+      req.params.id,
+      req.params.appId,
+      req.user.id,
+      parsed.data,
+    );
+    return res.status(200).json({ application: app.toPublicJSON() });
+  } catch (error) {
+    return res.status(error.status || 500).json({
+      error: { code: error.code || 'SAVE_REVIEW_FAILED', message: error.message },
     });
   }
 }

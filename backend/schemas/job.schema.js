@@ -125,3 +125,20 @@ export const applicationStatusSchema = z.object({
   status: z.enum(['applied', 'shortlisted', 'interview', 'closed']),
   notes: z.string().trim().max(1000).optional(),
 });
+
+// PATCH /jobs/:id/applicants/:appId/review — kept separate from the
+// status route so admins can leave a scorecard without also having to
+// move the applicant across pipeline stages. All fields optional so a
+// reviewer can update just notes, just their rating, or both.
+export const applicationReviewSchema = z
+  .object({
+    notes: z.string().trim().max(2000).optional(),
+    rating: z.number().int().min(1).max(5).optional(),
+    comment: z.string().trim().max(2000).optional(),
+    // Explicit "remove my scorecard" affordance. Prevents needing a
+    // separate DELETE endpoint for a small feature.
+    removeMyScorecard: z.boolean().optional(),
+  })
+  .refine(v => v.notes !== undefined || v.rating !== undefined || v.comment !== undefined || v.removeMyScorecard, {
+    message: 'Provide at least one of: notes, rating, comment, removeMyScorecard',
+  });

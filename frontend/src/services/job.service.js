@@ -74,6 +74,15 @@ export async function getApplicantProfile(jobId, appId) {
   return data.profile;
 }
 
+// Save the current reviewer's notes + scorecard on an application.
+// Notes are shared across all reviewers; the scorecard row is
+// upserted for the current user only. Pass { removeMyScorecard: true }
+// to delete the current reviewer's scorecard entirely.
+export async function saveApplicantReview(jobId, appId, payload) {
+  const { data } = await api.patch(`/jobs/${jobId}/applicants/${appId}/review`, payload);
+  return data.application;
+}
+
 // Server streams a PDF; we save it via an object URL. Same trigger
 // pattern as the faculty self-download in faculty.service.js so the
 // browser prompts a Save-As instead of navigating.

@@ -243,6 +243,17 @@ export async function getApplicantProfile(jobId, applicationId, requesterId) {
     .limit(20);
   const publicationCount = await Publication.countDocuments({ facultyId: applicant._id });
   const directory = applicant.toDirectoryJSON();
+  const scorecards = (application.scorecards || []).map(sc => ({
+    id: sc._id?.toString?.() || null,
+    reviewerId: sc.reviewerId?.toString?.() || null,
+    reviewerName: sc.reviewerName || '',
+    rating: sc.rating,
+    comment: sc.comment || '',
+    updatedAt: sc.updatedAt,
+  }));
+  const ratingCount = scorecards.length;
+  const averageRating =
+    ratingCount > 0 ? scorecards.reduce((s, r) => s + r.rating, 0) / ratingCount : null;
   return {
     ...directory,
     email: applicant.email,
@@ -254,8 +265,82 @@ export async function getApplicantProfile(jobId, applicationId, requesterId) {
       status: application.status,
       appliedAt: application.appliedAt,
       notes: application.notes || '',
+      scorecards,
+      ratingCount,
+      averageRating: averageRating != null ? Math.round(averageRating * 10) / 10 : null,
+      // Convenience for the drawer UI — the reviewer's own scorecard,
+      // so the form can prefill without a client-side filter dance.
+      myScorecard: scorecards.find(sc => sc.reviewerId === requesterId) || null,
     },
+    // Echoed back so the UI can identify the current reviewer against
+    // scorecard rows returned by the review PATCH (which returns the
+    // Application, not the profile).
+    currentReviewerId: requesterId,
   };
+}
+
+/**
+ * Save a reviewer's notes + scorecard on an application. Notes is a
+ * SHARED field (last writer wins — CA committees typically use it as a
+ * running comment thread). Scorecards are per-reviewer: a reviewer can
+ * only touch their own row, and setting `removeMyScorecard: true`
+ * deletes it. Returns the fresh application document.
+ */
+export async function saveApplicantReview(
+  jobId,
+  applicationId,
+  requesterId,
+  { notes, rating, comment, removeMyScorecard } = {},
+) {
+  const { application } = await loadApplicantForAdmin(jobId, applicationId, requesterId);
+  const requester = await Faculty.findById(requesterId, 'name');
+  const reviewerName = requester?.name || 'Reviewer';
+
+  if (notes !== undefined) {
+    application.notes = notes.trim() || null;
+  }
+
+  if (removeMyScorecard) {
+    application.scorecards = (application.scorecards || []).filter(
+      sc => sc.reviewerId.toString() !== requesterId,
+    );
+  } else if (rating !== undefined || comment !== undefined) {
+    const existing = (application.scorecards || []).find(
+      sc => sc.reviewerId.toString() === requesterId,
+    );
+    if (existing) {
+      if (rating !== undefined) existing.rating = rating;
+      if (comment !== undefined) existing.comment = comment.trim() || null;
+      existing.reviewerName = reviewerName;
+    } else {
+      if (rating === undefined) {
+        const err = new Error('Rating is required when creating a new scorecard.');
+        err.code = 'RATING_REQUIRED';
+        err.status = 400;
+        throw err;
+      }
+      application.scorecards.push({
+        reviewerId: requesterId,
+        reviewerName,
+        rating,
+        comment: comment?.trim() || null,
+      });
+    }
+  }
+
+  await application.save();
+  const populated = await application.populate({
+    path: 'facultyId',
+    select: 'name email designation orcidId domainTags citationCount hIndex',
+  });
+  logger.info('applicant review saved', {
+    jobId,
+    applicationId,
+    reviewerId: requesterId,
+    noteLen: application.notes?.length || 0,
+    scorecardCount: application.scorecards.length,
+  });
+  return populated;
 }
 
 const CV_TEMPLATES = {
