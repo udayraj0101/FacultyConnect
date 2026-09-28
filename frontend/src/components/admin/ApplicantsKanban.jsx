@@ -10,6 +10,7 @@ import {
   ArrowUpDown,
   X,
   CheckSquare,
+  Columns3,
 } from 'lucide-react';
 import SectionCard from '../dashboard/SectionCard';
 import EmptyState from '../ui/EmptyState';
@@ -23,6 +24,12 @@ import {
   bulkSetApplicationStatus,
 } from '../../services/job.service';
 import ApplicantProfileModal from './ApplicantProfileModal';
+import ApplicantCompareModal from './ApplicantCompareModal';
+
+// Compare fits 2-4 applicants comfortably in the grid; more than 4
+// pushes columns below ~180px wide and stops being scannable.
+const COMPARE_MIN = 2;
+const COMPARE_MAX = 4;
 
 const COLUMNS = [
   { key: 'applied', label: 'Applied', tone: 'bg-primary/5 border-primary/20' },
@@ -279,6 +286,7 @@ export default function ApplicantsKanban({ initialJobId = '' }) {
   const [selectedIds, setSelectedIds] = useState(new Set());
   const [bulkBusy, setBulkBusy] = useState(false);
   const [bulkFeedback, setBulkFeedback] = useState('');
+  const [compareIds, setCompareIds] = useState(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -511,7 +519,23 @@ export default function ApplicantsKanban({ initialJobId = '' }) {
                 Clear
               </button>
               <div className="ml-auto flex items-center gap-1.5 flex-wrap">
-                <span className="text-[11px] text-text-muted mr-1">Move to:</span>
+                {selectedCount >= COMPARE_MIN && selectedCount <= COMPARE_MAX && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => setCompareIds(Array.from(selectedIds))}
+                    disabled={bulkBusy}
+                    className="text-[11px] h-7 border-primary/40 text-primary hover:bg-primary/5"
+                  >
+                    <Columns3 size={11} className="mr-1" /> Compare
+                  </Button>
+                )}
+                {selectedCount > COMPARE_MAX && (
+                  <span className="text-[11px] text-text-muted italic">
+                    Compare limited to {COMPARE_MAX} — deselect some
+                  </span>
+                )}
+                <span className="text-[11px] text-text-muted mr-1 ml-1">Move to:</span>
                 {COLUMNS.map(col => (
                   <Button
                     key={col.key}
@@ -636,6 +660,20 @@ export default function ApplicantsKanban({ initialJobId = '' }) {
           jobId={selectedJobId}
           applicationId={openApplicationId}
           onClose={() => setOpenApplicationId(null)}
+        />
+      )}
+
+      {compareIds && (
+        <ApplicantCompareModal
+          jobId={selectedJobId}
+          applicationIds={compareIds}
+          onClose={() => setCompareIds(null)}
+          onOpenProfile={appId => {
+            // Chain to the profile drawer without unmounting the compare
+            // modal — closing compare after handing off would surprise
+            // an admin who wants to bounce back after a quick read.
+            setOpenApplicationId(appId);
+          }}
         />
       )}
     </SectionCard>
