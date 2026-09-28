@@ -92,6 +92,17 @@ export async function getApplicantProfileHandler(req, res) {
   }
 }
 
+export async function cloneJobHandler(req, res) {
+  try {
+    const job = await jobService.cloneJob(req.params.id, req.user.id);
+    return res.status(201).json({ job: job.toPublicJSON() });
+  } catch (error) {
+    return res.status(error.status || 500).json({
+      error: { code: error.code || 'CLONE_FAILED', message: error.message },
+    });
+  }
+}
+
 export async function bulkStatusHandler(req, res) {
   const parsed = bulkStatusSchema.safeParse(req.body);
   if (!parsed.success) {
@@ -203,13 +214,17 @@ export async function listMyPostingsHandler(req, res) {
 }
 
 export async function setJobStatusHandler(req, res) {
-  // Extended to accept 'archived' alongside open/closed so admins can
-  // move a posting to the tombstone state from the Job Board too, not
-  // just via the dedicated DELETE route.
+  // draft ↔ open transitions come from the "Publish" and "Move to
+  // draft" affordances on the admin console. archived is still reachable
+  // here so the Job Board can flip a live posting straight to tombstone
+  // without going through the dedicated DELETE route.
   const status = req.body?.status;
-  if (!['open', 'closed', 'archived'].includes(status)) {
+  if (!['draft', 'open', 'closed', 'archived'].includes(status)) {
     return res.status(400).json({
-      error: { code: 'VALIDATION_ERROR', message: 'status must be open, closed, or archived' },
+      error: {
+        code: 'VALIDATION_ERROR',
+        message: 'status must be draft, open, closed, or archived',
+      },
     });
   }
   try {

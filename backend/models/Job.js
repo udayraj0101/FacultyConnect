@@ -1,11 +1,14 @@
 import mongoose from 'mongoose';
 
 const DESIGNATIONS = ['Assistant', 'Associate', 'Professor', 'Guest', 'Research'];
-// `archived` is a soft-delete tri-state: postings the admin removed but
-// that we keep for audit + past-application referencing. Public list
-// routes exclude archived by default; the "My postings" console can
-// opt in with an include_archived flag.
-const STATUSES = ['open', 'closed', 'archived'];
+// `draft`   — work in progress, invisible on the public Job Board.
+// `open`    — accepting applications; the default publish path.
+// `closed`  — no longer accepting; still visible in listings.
+// `archived`— soft-delete tombstone; hidden from public + admin lists
+//             unless the admin opts in with include_archived.
+// Public list routes only return `open`. The "My postings" console
+// returns every state so the CollegeAdmin can see their drafts + past.
+const STATUSES = ['draft', 'open', 'closed', 'archived'];
 
 const jobSchema = new mongoose.Schema(
   {

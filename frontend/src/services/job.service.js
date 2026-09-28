@@ -66,6 +66,14 @@ export async function deleteJob(id, { hard = false } = {}) {
   return data;
 }
 
+// Duplicate an existing posting into a fresh draft. Server prefixes
+// the title with "Copy of " and forces status='draft' so admins get a
+// safe editable copy without clobbering the source.
+export async function cloneJob(id) {
+  const { data } = await api.post(`/jobs/${id}/clone`);
+  return data.job;
+}
+
 // Admin-scoped applicant review — returns the same shape as PublicProfile
 // bypassing the publicProfileEnabled opt-in gate (applying is implicit
 // consent for the posting admin). Contact fields included.

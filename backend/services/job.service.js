@@ -549,6 +549,66 @@ export async function listMyInstitutionPostings(requesterId) {
  * Returns { job, requester } on success or throws a 403/404 the caller
  * can forward straight to the response.
  */
+/**
+ * Clone an existing posting into a fresh draft. Copies every editable
+ * field verbatim (title, description, reservation, vacancies, etc.)
+ * and prefixes the title with "Copy of " so the admin can spot the
+ * duplicate at a glance. Deliberately does NOT copy: status (always
+ * draft), applications (drafts have no applicants), or timestamps.
+ * Deadline copies as-is because the admin usually wants to bump it
+ * anyway — showing the stale one makes the field they need to change
+ * obvious.
+ *
+ * Institution-scoped: cloning is a create, so we reuse createJob's
+ * verified-institution guard rather than the mutation ownership check
+ * (cross-institution clones already fail at that guard).
+ */
+export async function cloneJob(sourceId, requesterId) {
+  const source = await Job.findById(sourceId);
+  if (!source) {
+    const err = new Error('Source posting not found');
+    err.code = 'JOB_NOT_FOUND';
+    err.status = 404;
+    throw err;
+  }
+  const requester = await Faculty.findById(requesterId);
+  const isPlatformAdmin = requester?.role === 'PlatformAdmin';
+  const ownsSource =
+    requester?.role === 'CollegeAdmin' &&
+    requester?.institutionId?.toString() === source.institutionId.toString();
+  if (!isPlatformAdmin && !ownsSource) {
+    const err = new Error('You can only clone postings from your own institution');
+    err.code = 'FORBIDDEN';
+    err.status = 403;
+    throw err;
+  }
+
+  const payload = {
+    title: source.title.startsWith('Copy of ') ? source.title : `Copy of ${source.title}`,
+    department: source.department,
+    designation: source.designation,
+    qualifications: source.qualifications,
+    description: source.description,
+    domainTags: [...(source.domainTags || [])],
+    location: source.location,
+    experienceYears: source.experienceYears,
+    salaryDisclosed: source.salaryDisclosed,
+    vacancies: source.vacancies,
+    reservation: {
+      UR: source.reservation?.UR || 0,
+      SC: source.reservation?.SC || 0,
+      ST: source.reservation?.ST || 0,
+      OBC: source.reservation?.OBC || 0,
+      EWS: source.reservation?.EWS || 0,
+      PwD: source.reservation?.PwD || 0,
+    },
+    deadline: source.deadline,
+    status: 'draft',
+  };
+
+  return createJob(payload, requesterId);
+}
+
 async function ensureCanMutateJob(jobId, requesterId) {
   const job = await Job.findById(jobId);
   if (!job) {

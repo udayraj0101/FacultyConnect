@@ -19,6 +19,7 @@ import {
   getApplicantCvHandler,
   saveApplicantReviewHandler,
   bulkStatusHandler,
+  cloneJobHandler,
 } from '../controllers/job.controller.js';
 
 const router = Router();
@@ -62,6 +63,13 @@ router.delete(
   requireRole('CollegeAdmin', 'PlatformAdmin'),
   validateParams(objectIdParamSchema),
   deleteJobHandler,
+);
+router.post(
+  '/:id/clone',
+  authenticate,
+  requireRole('CollegeAdmin', 'PlatformAdmin'),
+  validateParams(objectIdParamSchema),
+  cloneJobHandler,
 );
 router.get(
   '/:id/applicants',

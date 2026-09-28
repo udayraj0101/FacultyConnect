@@ -56,6 +56,10 @@ const createJobBase = z.object({
   vacancies: z.number().int().min(1).max(500).default(1),
   reservation: reservationSchema,
   deadline: z.coerce.date(),
+  // Two entry points on the Post Job form: "Publish" (default) and
+  // "Save as draft". `archived` and `closed` can't be created directly
+  // — they're only reachable via the /status route on an existing job.
+  status: z.enum(['draft', 'open']).default('open'),
 });
 
 export const createJobSchema = attachReservationInvariants(createJobBase);

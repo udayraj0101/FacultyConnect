@@ -1,11 +1,21 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { Briefcase, CalendarClock, ClipboardList, Pencil, Trash2, ArchiveRestore, Users } from 'lucide-react';
+import {
+  Briefcase,
+  CalendarClock,
+  ClipboardList,
+  Pencil,
+  Trash2,
+  ArchiveRestore,
+  Users,
+  Copy,
+  Send,
+} from 'lucide-react';
 import SectionCard from '../dashboard/SectionCard';
 import EmptyState from '../ui/EmptyState';
 import { SkeletonList } from '../ui/Skeleton';
 import { Button } from '../ui/Button';
 import { Alert, AlertDescription } from '../ui/Alert';
-import { listMyPostings, setJobStatus, deleteJob, getJob } from '../../services/job.service';
+import { listMyPostings, setJobStatus, deleteJob, getJob, cloneJob } from '../../services/job.service';
 import PostJobForm from './PostJobForm';
 
 function daysUntil(deadline) {
@@ -14,6 +24,7 @@ function daysUntil(deadline) {
 
 function StatusPill({ status }) {
   const styles = {
+    draft: 'bg-yellow-100 text-yellow-800 border-yellow-300',
     open: 'bg-success/10 text-success border-success/30',
     closed: 'bg-muted text-text-muted border-border',
     archived: 'bg-danger/10 text-danger border-danger/30',
@@ -72,18 +83,32 @@ function DeadlineText({ deadline }) {
   );
 }
 
-function JobRowActions({ job, busy, onOpenApplicants, onToggle, onEdit, onDelete }) {
+function JobRowActions({ job, busy, onOpenApplicants, onToggle, onEdit, onDelete, onClone, onPublish }) {
   const archived = job.status === 'archived';
+  const isDraft = job.status === 'draft';
   return (
     <div className="flex flex-col sm:flex-row md:flex-col gap-1 min-w-[120px]">
+      {/* Drafts have no applicants yet, but keep the button for
+          consistent action-list height across statuses. */}
       <Button
         size="sm"
         variant="outline"
         onClick={() => onOpenApplicants?.(job.id)}
-        disabled={busy}
+        disabled={busy || isDraft}
+        title={isDraft ? 'Publish this posting before it can receive applications' : undefined}
       >
         View applicants
       </Button>
+      {isDraft && (
+        <Button
+          size="sm"
+          onClick={() => onPublish(job)}
+          disabled={busy}
+        >
+          <Send size={12} className="mr-1" />
+          Publish
+        </Button>
+      )}
       {!archived && (
         <Button size="sm" variant="outline" onClick={() => onEdit(job)} disabled={busy}>
           <Pencil size={12} className="mr-1" />
@@ -93,29 +118,40 @@ function JobRowActions({ job, busy, onOpenApplicants, onToggle, onEdit, onDelete
       <Button
         size="sm"
         variant="outline"
-        onClick={() => onToggle(job)}
+        onClick={() => onClone(job)}
         disabled={busy}
-        className={
-          archived
-            ? 'border-primary/40 text-primary hover:bg-primary/5'
-            : job.status === 'open'
-              ? 'border-danger/40 text-danger hover:bg-danger/5'
-              : ''
-        }
       >
-        {busy
-          ? '…'
-          : archived
-            ? (
-                <>
-                  <ArchiveRestore size={12} className="mr-1" />
-                  Restore
-                </>
-              )
-            : job.status === 'open'
-              ? 'Close job'
-              : 'Reopen'}
+        <Copy size={12} className="mr-1" />
+        Clone
       </Button>
+      {!isDraft && (
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={() => onToggle(job)}
+          disabled={busy}
+          className={
+            archived
+              ? 'border-primary/40 text-primary hover:bg-primary/5'
+              : job.status === 'open'
+                ? 'border-danger/40 text-danger hover:bg-danger/5'
+                : ''
+          }
+        >
+          {busy
+            ? '…'
+            : archived
+              ? (
+                  <>
+                    <ArchiveRestore size={12} className="mr-1" />
+                    Restore
+                  </>
+                )
+              : job.status === 'open'
+                ? 'Close job'
+                : 'Reopen'}
+        </Button>
+      )}
       {!archived && (
         <Button
           size="sm"
@@ -220,6 +256,43 @@ export default function MyJobsList({ onOpenApplicants }) {
       setConfirmDelete(null);
     } catch (err) {
       setError(err.response?.data?.error?.message || 'Could not archive posting');
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const doClone = async job => {
+    if (busyId) return;
+    setBusyId(job.id);
+    setError('');
+    try {
+      const cloned = await cloneJob(job.id);
+      // Refetch — the cloned row needs the counts/pipeline shape the
+      // aggregate returns, and inventing that on the client would be
+      // error-prone. Cheap for the typical <50-postings roster.
+      await refresh();
+      // Auto-open the clone in the edit form so the admin can adjust
+      // whatever needs to change before publishing (usually the
+      // deadline). Fetch the full doc since refresh loads the aggregate
+      // shape which strips description/qualifications.
+      const full = await getJob(cloned.id);
+      setEditingJob(full);
+    } catch (err) {
+      setError(err.response?.data?.error?.message || 'Could not clone posting');
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const doPublish = async job => {
+    if (busyId) return;
+    setBusyId(job.id);
+    setError('');
+    try {
+      await setJobStatus(job.id, 'open');
+      setJobs(prev => prev.map(j => (j.id === job.id ? { ...j, status: 'open' } : j)));
+    } catch (err) {
+      setError(err.response?.data?.error?.message || 'Could not publish draft');
     } finally {
       setBusyId(null);
     }
@@ -335,6 +408,8 @@ export default function MyJobsList({ onOpenApplicants }) {
                         onToggle={toggle}
                         onEdit={openEdit}
                         onDelete={j => setConfirmDelete(j)}
+                        onClone={doClone}
+                        onPublish={doPublish}
                       />
                     </td>
                   </tr>
@@ -385,6 +460,8 @@ export default function MyJobsList({ onOpenApplicants }) {
                   onToggle={toggle}
                   onEdit={openEdit}
                   onDelete={j => setConfirmDelete(j)}
+                  onClone={doClone}
+                  onPublish={doPublish}
                 />
               </div>
             ))}

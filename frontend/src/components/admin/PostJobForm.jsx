@@ -1,11 +1,12 @@
 import React, { useState } from 'react';
-import { Briefcase, Save, ChevronDown, ChevronUp } from 'lucide-react';
+import { Briefcase, Save, ChevronDown, ChevronUp, FileText, Eye } from 'lucide-react';
 import SectionCard from '../dashboard/SectionCard';
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
 import { Label } from '../ui/Label';
 import { Alert, AlertDescription } from '../ui/Alert';
 import { createJob, updateJob } from '../../services/job.service';
+import JobPreviewModal from './JobPreviewModal';
 
 const DESIGNATIONS = ['Assistant', 'Associate', 'Professor', 'Guest', 'Research'];
 
@@ -75,8 +76,14 @@ export default function PostJobForm({ onCreated, editJob, onSaved, onCancel }) {
   const isEdit = Boolean(editJob);
   const [form, setForm] = useState(() => (isEdit ? jobToFormState(editJob) : EMPTY));
   const [submitting, setSubmitting] = useState(false);
+  const [submittingIntent, setSubmittingIntent] = useState('');
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(null);
+  const [previewOpen, setPreviewOpen] = useState(false);
+  // In edit mode, we snapshot the source status so "Save changes" keeps
+  // the posting in its current state. Publish + Save-as-draft buttons
+  // still work as explicit overrides.
+  const sourceStatus = isEdit ? editJob?.status || 'open' : 'draft';
   // Reservation block is collapsed by default — most postings don't need
   // it, and it takes ~120px of vertical space when open. Auto-expand on
   // edit if the posting has any reservation set (so the admin sees it).
@@ -105,35 +112,43 @@ export default function PostJobForm({ onCreated, editJob, onSaved, onCancel }) {
   const verticalMismatch = anyVerticalSet && verticalSum !== vacancies;
   const pwdOverflow = form.reservation.PwD > vacancies;
 
-  const onSubmit = async e => {
-    e.preventDefault();
+  // Serialise the current form state into the API payload. Extracted
+  // so the preview modal can consume it without duplicating the
+  // trim/number-coerce logic in two places.
+  const buildPayload = intent => ({
+    title: form.title.trim(),
+    department: form.department.trim(),
+    designation: form.designation,
+    qualifications: form.qualifications.trim(),
+    description: form.description.trim(),
+    location: form.location.trim() || undefined,
+    experienceYears: Number(form.experienceYears) || 0,
+    salaryDisclosed: form.salaryDisclosed.trim() || undefined,
+    vacancies: Number(form.vacancies) || 1,
+    reservation: {
+      UR: Number(form.reservation.UR) || 0,
+      SC: Number(form.reservation.SC) || 0,
+      ST: Number(form.reservation.ST) || 0,
+      OBC: Number(form.reservation.OBC) || 0,
+      EWS: Number(form.reservation.EWS) || 0,
+      PwD: Number(form.reservation.PwD) || 0,
+    },
+    deadline: form.deadline,
+    domainTags: form.domainTags
+      .split(',')
+      .map(t => t.trim())
+      .filter(Boolean),
+    // create allows status; edit ignores it (PATCH schema is strict
+    // and status has its own /status route). We only send it on create.
+    ...(intent && !isEdit ? { status: intent } : {}),
+  });
+
+  const doSubmit = async intent => {
     setError('');
     setSuccess(null);
     setSubmitting(true);
-    const payload = {
-      title: form.title.trim(),
-      department: form.department.trim(),
-      designation: form.designation,
-      qualifications: form.qualifications.trim(),
-      description: form.description.trim(),
-      location: form.location.trim() || undefined,
-      experienceYears: Number(form.experienceYears) || 0,
-      salaryDisclosed: form.salaryDisclosed.trim() || undefined,
-      vacancies: Number(form.vacancies) || 1,
-      reservation: {
-        UR: Number(form.reservation.UR) || 0,
-        SC: Number(form.reservation.SC) || 0,
-        ST: Number(form.reservation.ST) || 0,
-        OBC: Number(form.reservation.OBC) || 0,
-        EWS: Number(form.reservation.EWS) || 0,
-        PwD: Number(form.reservation.PwD) || 0,
-      },
-      deadline: form.deadline,
-      domainTags: form.domainTags
-        .split(',')
-        .map(t => t.trim())
-        .filter(Boolean),
-    };
+    setSubmittingIntent(intent);
+    const payload = buildPayload(intent);
     try {
       if (isEdit) {
         const updated = await updateJob(editJob.id, payload);
@@ -154,7 +169,15 @@ export default function PostJobForm({ onCreated, editJob, onSaved, onCancel }) {
       }
     } finally {
       setSubmitting(false);
+      setSubmittingIntent('');
     }
+  };
+
+  // Form onSubmit fires on Enter-in-field; treat that as "publish"
+  // in create mode and "save" in edit mode to keep the muscle memory.
+  const onSubmit = e => {
+    e.preventDefault();
+    doSubmit(isEdit ? sourceStatus : 'open');
   };
 
   return (
@@ -175,8 +198,17 @@ export default function PostJobForm({ onCreated, editJob, onSaved, onCancel }) {
           {success && (
             <Alert variant="success">
               <AlertDescription>
-                Posted: <span className="font-semibold">{success.title}</span> — visible on the Job
-                Board now.
+                {success.status === 'draft' ? (
+                  <>
+                    Draft saved: <span className="font-semibold">{success.title}</span> — visible
+                    in My Jobs but not yet on the public Job Board.
+                  </>
+                ) : (
+                  <>
+                    Posted: <span className="font-semibold">{success.title}</span> — visible on
+                    the Job Board now.
+                  </>
+                )}
               </AlertDescription>
             </Alert>
           )}
@@ -372,35 +404,71 @@ export default function PostJobForm({ onCreated, editJob, onSaved, onCancel }) {
             </div>
           </div>
 
-        <div className="flex items-center justify-end gap-2 pt-2 border-t border-border">
-          {isEdit ? (
-            <>
-              <Button type="button" variant="outline" onClick={onCancel} disabled={submitting}>
-                Cancel
-              </Button>
-              <Button type="submit" disabled={submitting || verticalMismatch || pwdOverflow}>
-                <Save size={14} className="mr-1.5" />
-                {submitting ? 'Saving…' : 'Save changes'}
-              </Button>
-            </>
-          ) : (
-            <>
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => setForm(EMPTY)}
-                disabled={submitting}
-              >
-                Reset
-              </Button>
-              <Button type="submit" disabled={submitting || verticalMismatch || pwdOverflow}>
-                <Briefcase size={14} className="mr-1.5" />
-                {submitting ? 'Publishing…' : 'Publish job'}
-              </Button>
-            </>
-          )}
+        <div className="flex items-center justify-between gap-2 pt-2 border-t border-border flex-wrap">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => setPreviewOpen(true)}
+            disabled={submitting || !form.title.trim()}
+            className="text-xs"
+            title={!form.title.trim() ? 'Fill in a title first' : 'See how faculty will view this posting'}
+          >
+            <Eye size={13} className="mr-1.5" /> Preview
+          </Button>
+          <div className="flex items-center gap-2 flex-wrap justify-end">
+            {isEdit ? (
+              <>
+                <Button type="button" variant="outline" onClick={onCancel} disabled={submitting}>
+                  Cancel
+                </Button>
+                <Button
+                  type="button"
+                  onClick={() => doSubmit(sourceStatus)}
+                  disabled={submitting || verticalMismatch || pwdOverflow}
+                >
+                  <Save size={14} className="mr-1.5" />
+                  {submitting ? 'Saving…' : 'Save changes'}
+                </Button>
+              </>
+            ) : (
+              <>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setForm(EMPTY)}
+                  disabled={submitting}
+                >
+                  Reset
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => doSubmit('draft')}
+                  disabled={submitting || verticalMismatch || pwdOverflow}
+                >
+                  <FileText size={13} className="mr-1.5" />
+                  {submitting && submittingIntent === 'draft' ? 'Saving…' : 'Save as draft'}
+                </Button>
+                <Button
+                  type="button"
+                  onClick={() => doSubmit('open')}
+                  disabled={submitting || verticalMismatch || pwdOverflow}
+                >
+                  <Briefcase size={14} className="mr-1.5" />
+                  {submitting && submittingIntent === 'open' ? 'Publishing…' : 'Publish job'}
+                </Button>
+              </>
+            )}
+          </div>
         </div>
       </form>
+
+      {previewOpen && (
+        <JobPreviewModal
+          payload={buildPayload(isEdit ? sourceStatus : 'open')}
+          onClose={() => setPreviewOpen(false)}
+        />
+      )}
     </SectionCard>
   );
 }
