@@ -18,6 +18,7 @@ import {
   getApplicantProfileHandler,
   getApplicantCvHandler,
   saveApplicantReviewHandler,
+  bulkStatusHandler,
 } from '../controllers/job.controller.js';
 
 const router = Router();
@@ -105,6 +106,13 @@ router.patch(
   requireRole('CollegeAdmin', 'PlatformAdmin'),
   validateParams(jobAndApplicantParamSchema),
   saveApplicantReviewHandler,
+);
+router.post(
+  '/:id/applicants/bulk-status',
+  authenticate,
+  requireRole('CollegeAdmin', 'PlatformAdmin'),
+  validateParams(objectIdParamSchema),
+  bulkStatusHandler,
 );
 
 export default router;

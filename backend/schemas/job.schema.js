@@ -126,6 +126,18 @@ export const applicationStatusSchema = z.object({
   notes: z.string().trim().max(1000).optional(),
 });
 
+// POST /jobs/:id/applicants/bulk-status — reused by the multi-select
+// bulk-move affordance in the kanban. Body accepts up to 100 ids per
+// call (arbitrary cap; kanbans in practice rarely exceed 30 applicants
+// per column).
+export const bulkStatusSchema = z.object({
+  applicationIds: z
+    .array(z.string().regex(/^[a-f0-9]{24}$/i, { message: 'Must be a 24-char hex id' }))
+    .min(1, 'Select at least one applicant')
+    .max(100, 'At most 100 applicants per batch'),
+  status: z.enum(['applied', 'shortlisted', 'interview', 'closed']),
+});
+
 // PATCH /jobs/:id/applicants/:appId/review — kept separate from the
 // status route so admins can leave a scorecard without also having to
 // move the applicant across pipeline stages. All fields optional so a

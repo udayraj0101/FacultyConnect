@@ -280,6 +280,94 @@ export async function getApplicantProfile(jobId, applicationId, requesterId) {
 }
 
 /**
+ * Batch-move multiple applications to the same status. All rows must
+ * belong to the same job — that job's institution must match the
+ * requester's, same guard as the single-application PATCH. Skips
+ * applications that are already at the target status (no-op, no
+ * notification) so admins can safely include them in a broad selection
+ * without spamming candidates.
+ *
+ * Returns the count actually mutated plus any failures per id so the
+ * UI can surface partial success — Mongo's updateMany is atomic on
+ * a per-doc basis, so a partial failure would only happen if an id
+ * belonged to a different job (defensively filtered here).
+ */
+export async function bulkSetApplicationStatus(jobId, requesterId, { applicationIds, status }) {
+  const job = await getJobById(jobId);
+  const requester = await Faculty.findById(requesterId);
+  const isPlatformAdmin = requester?.role === 'PlatformAdmin';
+  const ownsJob =
+    requester?.role === 'CollegeAdmin' &&
+    requester?.institutionId?.toString() === job.institutionId._id.toString();
+  if (!isPlatformAdmin && !ownsJob) {
+    const err = new Error('You can only update applicants for jobs posted by your institution');
+    err.code = 'FORBIDDEN';
+    err.status = 403;
+    throw err;
+  }
+  if (!Array.isArray(applicationIds) || applicationIds.length === 0) {
+    const err = new Error('applicationIds must be a non-empty array');
+    err.code = 'BULK_EMPTY';
+    err.status = 400;
+    throw err;
+  }
+
+  // Load only rows that actually belong to this job — cross-job ids in
+  // the payload are silently dropped rather than 400'd so the admin
+  // doesn't have to prune the selection manually.
+  const apps = await Application.find({
+    _id: { $in: applicationIds },
+    jobId,
+  }).populate('facultyId', 'name email designation orcidId domainTags citationCount hIndex');
+
+  const found = new Set(apps.map(a => a._id.toString()));
+  const skipped = applicationIds.filter(id => !found.has(id));
+
+  let mutated = 0;
+  for (const app of apps) {
+    if (app.status === status) continue;
+    const prev = app.status;
+    app.status = status;
+    // eslint-disable-next-line no-await-in-loop
+    await app.save();
+    mutated += 1;
+    // Fire-and-forget notifications — mirroring updateApplicationStatus.
+    // We still send one per applicant so they each get their own inbox
+    // entry, but we don't wait on them: a slow notify backend shouldn't
+    // stretch a 10-row bulk move into 20 seconds.
+    notify(app.facultyId, 'application_status_changed', {
+      jobTitle: job.title,
+      institutionName: job.institutionId?.name || '',
+      status,
+      previousStatus: prev,
+      jobId: job._id.toString(),
+      applicationId: app._id.toString(),
+    }).catch(err =>
+      logger.warn('bulk notify failed', {
+        applicationId: app._id.toString(),
+        error: err.message,
+      }),
+    );
+  }
+
+  logger.info('bulk status update', {
+    jobId,
+    requesterId,
+    status,
+    requested: applicationIds.length,
+    mutated,
+    skippedCrossJob: skipped.length,
+  });
+
+  return {
+    mutated,
+    unchanged: apps.length - mutated,
+    skippedCrossJob: skipped.length,
+    status,
+  };
+}
+
+/**
  * Save a reviewer's notes + scorecard on an application. Notes is a
  * SHARED field (last writer wins — CA committees typically use it as a
  * running comment thread). Scorecards are per-reviewer: a reviewer can

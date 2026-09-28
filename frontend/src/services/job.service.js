@@ -74,6 +74,19 @@ export async function getApplicantProfile(jobId, appId) {
   return data.profile;
 }
 
+// Bulk-move multiple applications to the same status in one call.
+// Returns { mutated, unchanged, skippedCrossJob, status } — the caller
+// should refetch the applicants list on success so the UI reflects the
+// new statuses (mutated includes fresh notifications; unchanged means
+// the row was already at the target status).
+export async function bulkSetApplicationStatus(jobId, applicationIds, status) {
+  const { data } = await api.post(`/jobs/${jobId}/applicants/bulk-status`, {
+    applicationIds,
+    status,
+  });
+  return data;
+}
+
 // Save the current reviewer's notes + scorecard on an application.
 // Notes are shared across all reviewers; the scorecard row is
 // upserted for the current user only. Pass { removeMyScorecard: true }
