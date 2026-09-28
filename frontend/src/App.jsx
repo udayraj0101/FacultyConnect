@@ -25,6 +25,8 @@ import Signup from './pages/Signup';
 import Landing from './pages/Landing';
 import PublicProfile from './pages/PublicProfile';
 import Onboarding from './pages/Onboarding';
+import ForgotPassword from './pages/ForgotPassword';
+import ResetPassword from './pages/ResetPassword';
 import { getDefaultPathForRole } from './lib/roleRouting';
 
 function FacultyShell() {
@@ -64,6 +66,8 @@ export default function App() {
             <Route path="/login" element={<Login />} />
             <Route path="/signup" element={<Signup />} />
             <Route path="/onboarding/:token" element={<Onboarding />} />
+            <Route path="/forgot-password" element={<ForgotPassword />} />
+            <Route path="/reset-password/:token" element={<ResetPassword />} />
 
             {/* Public SEO profile — no auth required, renders even for anon visitors. */}
             <Route path="/f/:id" element={<PublicProfile />} />

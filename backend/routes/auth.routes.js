@@ -12,6 +12,9 @@ import {
   orcidCallbackHandler,
   onboardingPreviewHandler,
   onboardingCompleteHandler,
+  forgotPasswordHandler,
+  resetPasswordPreviewHandler,
+  resetPasswordCompleteHandler,
 } from '../controllers/auth.controller.js';
 
 // FC-01: brute-force protection on auth routes. Two layers so an attacker
@@ -77,5 +80,28 @@ router.get('/orcid/callback', orcidCallbackHandler);
 // Public onboarding endpoints — token in the URL is the auth.
 router.get('/onboarding/:token', onboardingPreviewHandler);
 router.post('/onboarding/:token/complete', onboardingCompleteHandler);
+
+// -----------------------------------------------------------------------
+// Password-reset flow
+//   - Reuse authIpLimiter for a per-IP cap on ALL reset traffic
+//   - Add a per-email cap on the request endpoint so spammers can't fire
+//     N reset emails to the same address from N different IPs
+//   - Reuse loginAccountLimiter's IPv6 normalization pattern
+// -----------------------------------------------------------------------
+const forgotEmailLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 5,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req, res) => {
+    const email = typeof req.body?.email === 'string' ? req.body.email.trim().toLowerCase() : '';
+    return email || ipKeyGenerator(req, res);
+  },
+  message: rateLimitedResponse,
+});
+
+router.post('/forgot-password', authIpLimiter, forgotEmailLimiter, forgotPasswordHandler);
+router.get('/reset-password/:token', authIpLimiter, resetPasswordPreviewHandler);
+router.post('/reset-password/:token', authIpLimiter, resetPasswordCompleteHandler);
 
 export default router;

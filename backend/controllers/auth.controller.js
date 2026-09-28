@@ -4,7 +4,12 @@ import * as authService from '../services/auth.service.js';
 import * as orcidService from '../services/orcid.service.js';
 import * as facultyService from '../services/faculty.service.js';
 import * as onboardingService from '../services/onboarding.service.js';
-import { completeOnboardingSchema } from '../schemas/auth.schema.js';
+import * as passwordResetService from '../services/password-reset.service.js';
+import {
+  completeOnboardingSchema,
+  forgotPasswordSchema,
+  resetPasswordSchema,
+} from '../schemas/auth.schema.js';
 import { createLogger } from '../utils/logger.js';
 
 const logger = createLogger('auth.controller');
@@ -211,6 +216,74 @@ export async function orcidCallbackHandler(req, res) {
     return frontendRedirect(res, {
       orcidError: error.code || 'ORCID_LINK_FAILED',
       orcidMessage: error.message,
+    });
+  }
+}
+
+// -----------------------------------------------------------------------
+// Password reset flow — three endpoints
+//
+//   POST /v1/auth/forgot-password       — request a reset link
+//   GET  /v1/auth/reset-password/:token — preview (validate + show masked email)
+//   POST /v1/auth/reset-password/:token — set the new password
+//
+// The forgot-password handler ALWAYS returns 200 with the same message
+// whether or not the email exists — this prevents attackers from probing
+// which accounts are registered. The service does the same-time-anyway
+// bcrypt burn so response times don't leak either.
+// -----------------------------------------------------------------------
+
+export async function forgotPasswordHandler(req, res) {
+  const parsed = forgotPasswordSchema.safeParse(req.body);
+  if (!parsed.success) {
+    const details = parsed.error.issues.map(i => ({ path: i.path.join('.'), message: i.message }));
+    return res.status(400).json({
+      error: { code: 'VALIDATION_ERROR', message: 'Invalid input', details },
+    });
+  }
+  try {
+    await passwordResetService.requestReset(parsed.data);
+    // Uniform response — same shape for known + unknown emails.
+    return res.status(200).json({
+      message: 'If an account exists for that email, a reset link has been sent.',
+    });
+  } catch (error) {
+    logger.error('forgot-password crashed', { error: error.message });
+    // Still respond 200 to avoid leaking that an internal error happened
+    // for a specific email but not others.
+    return res.status(200).json({
+      message: 'If an account exists for that email, a reset link has been sent.',
+    });
+  }
+}
+
+export async function resetPasswordPreviewHandler(req, res) {
+  try {
+    const preview = await passwordResetService.previewReset(req.params.token);
+    return res.status(200).json(preview);
+  } catch (error) {
+    return res.status(error.status || 500).json({
+      error: { code: error.code || 'PREVIEW_FAILED', message: error.message },
+    });
+  }
+}
+
+export async function resetPasswordCompleteHandler(req, res) {
+  const parsed = resetPasswordSchema.safeParse(req.body);
+  if (!parsed.success) {
+    const details = parsed.error.issues.map(i => ({ path: i.path.join('.'), message: i.message }));
+    return res.status(400).json({
+      error: { code: 'VALIDATION_ERROR', message: 'Invalid input', details },
+    });
+  }
+  try {
+    await passwordResetService.completeReset(req.params.token, parsed.data);
+    return res.status(200).json({
+      message: 'Password reset. You can now sign in with your new password.',
+    });
+  } catch (error) {
+    return res.status(error.status || 500).json({
+      error: { code: error.code || 'RESET_FAILED', message: error.message },
     });
   }
 }

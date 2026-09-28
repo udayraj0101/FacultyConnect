@@ -30,3 +30,19 @@ export const loginSchema = z.object({
   email: z.string().trim().toLowerCase().email('Valid email required'),
   password: z.string().min(1, 'Password required'),
 });
+
+// Forgot-password: only email needed. Handler always returns 200 whether
+// or not the email exists so an attacker can't enumerate accounts.
+export const forgotPasswordSchema = z.object({
+  email: z.string().trim().toLowerCase().email('Valid email required'),
+});
+
+// Reset-password: new password with the same constraints as signup /
+// onboarding. No consent flag — user already consented once and this
+// isn't creating a new account.
+export const resetPasswordSchema = z.object({
+  password: z
+    .string()
+    .min(8, 'Password must be at least 8 characters')
+    .max(128, 'Password too long'),
+});

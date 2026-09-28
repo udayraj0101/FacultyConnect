@@ -113,6 +113,12 @@ const facultySchema = new mongoose.Schema(
     // Cleared when the faculty completes onboarding and sets a password.
     onboardingTokenHash: { type: String, default: null },
     onboardingTokenExpires: { type: Date, default: null },
+    // Password-reset token — same pattern as onboarding: bcrypt-hashed with
+    // TTL. Only the most recent reset request is valid; issuing a new one
+    // overwrites the previous (feature, not bug — deliberate to shorten
+    // window of exposure). Cleared on successful completion.
+    passwordResetTokenHash: { type: String, default: null },
+    passwordResetTokenExpires: { type: Date, default: null },
     designation: { type: String, enum: DESIGNATIONS, default: 'Assistant' },
     department: { type: String, trim: true, default: '' },
     bio: { type: String, trim: true, default: '', maxlength: 1000 },

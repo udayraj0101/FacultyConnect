@@ -123,3 +123,31 @@ If you weren't expecting this invitation, you can safely ignore this email.
 `;
   return send({ to: toEmail, subject, text });
 }
+
+// Password reset — sent when the user clicks "Forgot password?" on the
+// login page. Not routed through notify() because the recipient may not
+// remember their account exists on FacultyConnect at all (the whole
+// point of the flow is they can't get in), so an in-app record would
+// never be seen. Also kept intentionally short — long copy in a reset
+// email is a phishing signal for many users.
+export function sendPasswordResetEmail({ toEmail, toName, token }) {
+  const url = `${FRONTEND_URL}/reset-password/${encodeURIComponent(token)}`;
+  const subject = 'Reset your FacultyConnect password';
+  const text = `Hi ${toName || 'there'},
+
+Someone (hopefully you) requested a password reset for your FacultyConnect account.
+
+Click here to choose a new password (link valid for 1 hour):
+  ${url}
+
+If you didn't request this, you can safely ignore this email — your password won't change and no one can access your account without the link above.
+
+For your security, this link:
+  - Expires in 1 hour
+  - Can only be used once
+  - Will invalidate any active sessions on your account after use
+
+— FacultyConnect
+`;
+  return send({ to: toEmail, subject, text });
+}

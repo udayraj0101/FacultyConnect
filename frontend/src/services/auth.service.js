@@ -48,3 +48,24 @@ export async function logout() {
   }
   tokenStorage.clear();
 }
+
+// --------- Password reset ---------
+// The API always returns the same 200 shape here whether or not the email
+// exists, so we don't try to interpret success vs. "email not found".
+export async function requestPasswordReset(email) {
+  const { data } = await api.post('/auth/forgot-password', { email });
+  return data;
+}
+
+export async function previewPasswordReset(token) {
+  const { data } = await api.get(`/auth/reset-password/${encodeURIComponent(token)}`);
+  return data;
+}
+
+export async function completePasswordReset(token, password) {
+  const { data } = await api.post(
+    `/auth/reset-password/${encodeURIComponent(token)}`,
+    { password },
+  );
+  return data;
+}
