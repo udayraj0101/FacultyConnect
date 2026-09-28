@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Briefcase, Save } from 'lucide-react';
+import { Briefcase, Save, ChevronDown, ChevronUp } from 'lucide-react';
 import SectionCard from '../dashboard/SectionCard';
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
@@ -8,6 +8,12 @@ import { Alert, AlertDescription } from '../ui/Alert';
 import { createJob, updateJob } from '../../services/job.service';
 
 const DESIGNATIONS = ['Assistant', 'Associate', 'Professor', 'Guest', 'Research'];
+
+// UR/SC/ST/OBC/EWS are vertical categories (sum must equal total
+// vacancies). PwD is horizontal — it carves seats OUT of the vertical
+// buckets, so it caps at total vacancies but doesn't add to the sum.
+const RESERVATION_CATEGORIES = ['UR', 'SC', 'ST', 'OBC', 'EWS'];
+const EMPTY_RESERVATION = { UR: 0, SC: 0, ST: 0, OBC: 0, EWS: 0, PwD: 0 };
 
 const EMPTY = {
   title: '',
@@ -18,6 +24,8 @@ const EMPTY = {
   location: '',
   experienceYears: 0,
   salaryDisclosed: '',
+  vacancies: 1,
+  reservation: { ...EMPTY_RESERVATION },
   deadline: '',
   domainTags: '',
 };
@@ -44,6 +52,15 @@ function jobToFormState(job) {
     location: job.location || '',
     experienceYears: job.experienceYears ?? 0,
     salaryDisclosed: job.salaryDisclosed || '',
+    vacancies: job.vacancies ?? 1,
+    reservation: {
+      UR: job.reservation?.UR ?? 0,
+      SC: job.reservation?.SC ?? 0,
+      ST: job.reservation?.ST ?? 0,
+      OBC: job.reservation?.OBC ?? 0,
+      EWS: job.reservation?.EWS ?? 0,
+      PwD: job.reservation?.PwD ?? 0,
+    },
     deadline: toDateInputValue(job.deadline),
     domainTags: Array.isArray(job.domainTags) ? job.domainTags.join(', ') : '',
   };
@@ -60,8 +77,33 @@ export default function PostJobForm({ onCreated, editJob, onSaved, onCancel }) {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(null);
+  // Reservation block is collapsed by default — most postings don't need
+  // it, and it takes ~120px of vertical space when open. Auto-expand on
+  // edit if the posting has any reservation set (so the admin sees it).
+  const [showReservation, setShowReservation] = useState(() => {
+    if (!isEdit) return false;
+    const r = editJob?.reservation;
+    if (!r) return false;
+    return r.UR || r.SC || r.ST || r.OBC || r.EWS || r.PwD;
+  });
 
   const update = (k, v) => setForm(prev => ({ ...prev, [k]: v }));
+  const updateReservation = (cat, v) =>
+    setForm(prev => ({
+      ...prev,
+      reservation: { ...prev.reservation, [cat]: Math.max(0, Number(v) || 0) },
+    }));
+
+  const verticalSum =
+    form.reservation.UR +
+    form.reservation.SC +
+    form.reservation.ST +
+    form.reservation.OBC +
+    form.reservation.EWS;
+  const anyVerticalSet = verticalSum > 0;
+  const vacancies = Number(form.vacancies) || 0;
+  const verticalMismatch = anyVerticalSet && verticalSum !== vacancies;
+  const pwdOverflow = form.reservation.PwD > vacancies;
 
   const onSubmit = async e => {
     e.preventDefault();
@@ -77,6 +119,15 @@ export default function PostJobForm({ onCreated, editJob, onSaved, onCancel }) {
       location: form.location.trim() || undefined,
       experienceYears: Number(form.experienceYears) || 0,
       salaryDisclosed: form.salaryDisclosed.trim() || undefined,
+      vacancies: Number(form.vacancies) || 1,
+      reservation: {
+        UR: Number(form.reservation.UR) || 0,
+        SC: Number(form.reservation.SC) || 0,
+        ST: Number(form.reservation.ST) || 0,
+        OBC: Number(form.reservation.OBC) || 0,
+        EWS: Number(form.reservation.EWS) || 0,
+        PwD: Number(form.reservation.PwD) || 0,
+      },
       deadline: form.deadline,
       domainTags: form.domainTags
         .split(',')
@@ -186,6 +237,87 @@ export default function PostJobForm({ onCreated, editJob, onSaved, onCancel }) {
                 onChange={e => update('experienceYears', e.target.value)}
               />
             </div>
+            <div className="space-y-2">
+              <Label htmlFor="vacancies">Number of vacancies</Label>
+              <Input
+                id="vacancies"
+                type="number"
+                min="1"
+                max="500"
+                required
+                value={form.vacancies}
+                onChange={e => update('vacancies', e.target.value)}
+              />
+            </div>
+            <div className="md:col-span-2 space-y-2">
+              <button
+                type="button"
+                onClick={() => setShowReservation(v => !v)}
+                className="inline-flex items-center gap-1.5 text-sm font-medium text-secondary hover:text-primary transition-colors"
+              >
+                {showReservation ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                Reservation category breakup
+                <span className="text-xs text-text-muted font-normal">
+                  (optional — required for government institutions)
+                </span>
+              </button>
+              {showReservation && (
+                <div className="rounded-lg border border-border bg-muted/30 p-4 space-y-3">
+                  <div className="text-xs text-text-muted leading-relaxed">
+                    Enter per-category vacancy counts. UR + SC + ST + OBC + EWS must equal the
+                    total vacancies. PwD is horizontal — reserved seats carved out of the
+                    categories above (does not add to the total).
+                  </div>
+                  <div className="grid grid-cols-3 md:grid-cols-6 gap-3">
+                    {RESERVATION_CATEGORIES.map(cat => (
+                      <div key={cat} className="space-y-1">
+                        <Label htmlFor={`res-${cat}`} className="text-xs">
+                          {cat}
+                        </Label>
+                        <Input
+                          id={`res-${cat}`}
+                          type="number"
+                          min="0"
+                          max="500"
+                          value={form.reservation[cat]}
+                          onChange={e => updateReservation(cat, e.target.value)}
+                        />
+                      </div>
+                    ))}
+                    <div className="space-y-1">
+                      <Label htmlFor="res-PwD" className="text-xs">
+                        PwD
+                      </Label>
+                      <Input
+                        id="res-PwD"
+                        type="number"
+                        min="0"
+                        max="500"
+                        value={form.reservation.PwD}
+                        onChange={e => updateReservation('PwD', e.target.value)}
+                        className={pwdOverflow ? 'border-danger' : ''}
+                      />
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-text-muted">
+                      Vertical total: <span className="font-semibold tabular-nums">{verticalSum}</span> of{' '}
+                      <span className="font-semibold tabular-nums">{vacancies}</span>
+                    </span>
+                    {verticalMismatch && (
+                      <span className="text-danger font-medium">
+                        Sum must equal {vacancies}.
+                      </span>
+                    )}
+                    {pwdOverflow && (
+                      <span className="text-danger font-medium">
+                        PwD cannot exceed {vacancies}.
+                      </span>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
             <div className="md:col-span-2 space-y-2">
               <Label htmlFor="qualifications">Qualifications required</Label>
               <textarea
@@ -246,7 +378,7 @@ export default function PostJobForm({ onCreated, editJob, onSaved, onCancel }) {
               <Button type="button" variant="outline" onClick={onCancel} disabled={submitting}>
                 Cancel
               </Button>
-              <Button type="submit" disabled={submitting}>
+              <Button type="submit" disabled={submitting || verticalMismatch || pwdOverflow}>
                 <Save size={14} className="mr-1.5" />
                 {submitting ? 'Saving…' : 'Save changes'}
               </Button>
@@ -261,7 +393,7 @@ export default function PostJobForm({ onCreated, editJob, onSaved, onCancel }) {
               >
                 Reset
               </Button>
-              <Button type="submit" disabled={submitting}>
+              <Button type="submit" disabled={submitting || verticalMismatch || pwdOverflow}>
                 <Briefcase size={14} className="mr-1.5" />
                 {submitting ? 'Publishing…' : 'Publish job'}
               </Button>

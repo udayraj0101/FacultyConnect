@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { Briefcase, CalendarClock, ClipboardList, Pencil, Trash2, ArchiveRestore } from 'lucide-react';
+import { Briefcase, CalendarClock, ClipboardList, Pencil, Trash2, ArchiveRestore, Users } from 'lucide-react';
 import SectionCard from '../dashboard/SectionCard';
 import EmptyState from '../ui/EmptyState';
 import { SkeletonList } from '../ui/Skeleton';
@@ -305,7 +305,14 @@ export default function MyJobsList({ onOpenApplicants }) {
                   <tr key={job.id} className="border-b border-border last:border-none align-top">
                     <td className="py-3 pr-4">
                       <div className="font-semibold text-text-light">{job.title}</div>
-                      <div className="text-xs text-text-muted">{job.department}</div>
+                      <div className="text-xs text-text-muted flex items-center gap-2 flex-wrap">
+                        <span>{job.department}</span>
+                        {job.vacancies > 1 && (
+                          <span className="inline-flex items-center gap-1 text-primary font-semibold">
+                            <Users size={11} /> {job.vacancies}
+                          </span>
+                        )}
+                      </div>
                     </td>
                     <td className="py-3 pr-4 text-text-muted">{job.designation}</td>
                     <td className="py-3 pr-4 text-text-muted">
@@ -346,8 +353,13 @@ export default function MyJobsList({ onOpenApplicants }) {
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
                     <div className="font-semibold text-text-light leading-tight">{job.title}</div>
-                    <div className="text-xs text-text-muted mt-0.5">
-                      {job.department} · {job.designation}
+                    <div className="text-xs text-text-muted mt-0.5 flex items-center gap-2 flex-wrap">
+                      <span>{job.department} · {job.designation}</span>
+                      {job.vacancies > 1 && (
+                        <span className="inline-flex items-center gap-1 text-primary font-semibold">
+                          <Users size={11} /> {job.vacancies}
+                        </span>
+                      )}
                     </div>
                   </div>
                   <StatusPill status={job.status} />

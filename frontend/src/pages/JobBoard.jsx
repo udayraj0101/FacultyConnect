@@ -10,6 +10,7 @@ import {
   ClipboardList,
   CheckCircle2,
   Flag,
+  Users,
 } from 'lucide-react';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
@@ -69,6 +70,35 @@ function StatusPill({ status }) {
     >
       {status}
     </span>
+  );
+}
+
+// Compact vacancy pill + optional reservation breakdown. Hidden entirely
+// when vacancies is 1 and no roster is set (the common private-institution
+// case), so we don't clutter cards for postings that don't need this data.
+function VacancyBreakdown({ vacancies, reservation }) {
+  const r = reservation || {};
+  const anyReservation =
+    (r.UR || 0) + (r.SC || 0) + (r.ST || 0) + (r.OBC || 0) + (r.EWS || 0) + (r.PwD || 0) > 0;
+  if (!anyReservation && (!vacancies || vacancies <= 1)) return null;
+  const parts = [];
+  if (r.UR) parts.push(`UR-${r.UR}`);
+  if (r.SC) parts.push(`SC-${r.SC}`);
+  if (r.ST) parts.push(`ST-${r.ST}`);
+  if (r.OBC) parts.push(`OBC-${r.OBC}`);
+  if (r.EWS) parts.push(`EWS-${r.EWS}`);
+  return (
+    <div className="inline-flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-text-muted">
+      <span className="inline-flex items-center gap-1 font-semibold text-text-light">
+        <Users size={12} /> {vacancies} vacanc{vacancies === 1 ? 'y' : 'ies'}
+      </span>
+      {parts.length > 0 && <span>({parts.join(' · ')})</span>}
+      {r.PwD > 0 && (
+        <span className="rounded bg-primary/10 text-primary px-1.5 py-0.5 text-[10px] font-semibold">
+          +{r.PwD} PwD
+        </span>
+      )}
+    </div>
   );
 }
 
@@ -147,6 +177,8 @@ function JobCard({ job, appliedStatus, onApply, onReport, applying, index }) {
             ))}
           </div>
         )}
+
+        <VacancyBreakdown vacancies={job.vacancies} reservation={job.reservation} />
 
         {job.salaryDisclosed && (
           <div className="inline-flex items-center gap-1 text-xs text-text-muted italic">

@@ -269,6 +269,15 @@ export async function listMyInstitutionPostings(requesterId) {
     createdAt: job.createdAt,
     applicantsCount: job.applicantsCount,
     counts: job.counts,
+    vacancies: job.vacancies || 1,
+    reservation: {
+      UR: job.reservation?.UR || 0,
+      SC: job.reservation?.SC || 0,
+      ST: job.reservation?.ST || 0,
+      OBC: job.reservation?.OBC || 0,
+      EWS: job.reservation?.EWS || 0,
+      PwD: job.reservation?.PwD || 0,
+    },
   }));
 }
 
