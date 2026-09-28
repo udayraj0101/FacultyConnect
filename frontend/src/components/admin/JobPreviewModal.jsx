@@ -19,6 +19,19 @@ const DESIGNATION_COLOR = {
   Research: '#64748B',
 };
 
+// Kept in sync with PAY_LEVEL_LABELS in pages/JobBoard.jsx. Duplicated
+// rather than lifted to a shared constant because this modal preview
+// intentionally mirrors the faculty-facing card verbatim — changes to
+// that card's copy should also be reflected here.
+const PAY_LEVEL_LABELS = {
+  L10: 'Level 10 · Assistant Professor (Entry)',
+  L11: 'Level 11 · Assistant Professor (Senior Grade)',
+  L12: 'Level 12 · Assistant Professor (Senior Scale)',
+  L13A: 'Level 13A · Associate Professor',
+  L14: 'Level 14 · Professor',
+  L15: 'Level 15 · Senior Professor / HAG',
+};
+
 function daysUntil(deadline) {
   if (!deadline) return 0;
   return Math.ceil((new Date(deadline).getTime() - Date.now()) / (24 * 60 * 60 * 1000));
@@ -184,9 +197,24 @@ export default function JobPreviewModal({ payload, onClose }) {
                   reservation={payload.reservation}
                 />
 
-                {payload.salaryDisclosed && (
-                  <div className="inline-flex items-center gap-1 text-xs text-text-muted italic">
-                    <IndianRupee size={12} /> {payload.salaryDisclosed}
+                {(payload.payLevel || payload.salaryDisclosed) && (
+                  <div className="flex flex-col gap-0.5 text-xs">
+                    {payload.payLevel && (
+                      <div className="inline-flex items-center gap-1 text-text-light font-semibold">
+                        <IndianRupee size={12} className="text-primary" />
+                        {PAY_LEVEL_LABELS[payload.payLevel] || payload.payLevel}
+                      </div>
+                    )}
+                    {payload.salaryDisclosed && (
+                      <div
+                        className={`inline-flex items-center gap-1 text-text-muted italic ${
+                          payload.payLevel ? 'pl-4' : ''
+                        }`}
+                      >
+                        {!payload.payLevel && <IndianRupee size={12} />}
+                        {payload.salaryDisclosed}
+                      </div>
+                    )}
                   </div>
                 )}
 

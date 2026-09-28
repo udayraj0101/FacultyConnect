@@ -16,6 +16,19 @@ const DESIGNATIONS = ['Assistant', 'Associate', 'Professor', 'Guest', 'Research'
 const RESERVATION_CATEGORIES = ['UR', 'SC', 'ST', 'OBC', 'EWS'];
 const EMPTY_RESERVATION = { UR: 0, SC: 0, ST: 0, OBC: 0, EWS: 0, PwD: 0 };
 
+// 7th CPC Academic Pay Levels — mirrored in backend/models/Job.js.
+// Ranges are the current 7th CPC pay band (basic pay in ₹, not
+// including HRA/DA). Displayed in the dropdown so admins picking a
+// level see the pay band their institution is committing to.
+const PAY_LEVELS = [
+  { value: 'L10', label: 'Level 10 — Assistant Professor (Entry)', range: '₹57,700 – 1,82,400' },
+  { value: 'L11', label: 'Level 11 — Assistant Professor (Senior Grade)', range: '₹68,900 – 2,05,500' },
+  { value: 'L12', label: 'Level 12 — Assistant Professor (Senior Scale)', range: '₹79,800 – 2,11,500' },
+  { value: 'L13A', label: 'Level 13A — Associate Professor', range: '₹1,31,400 – 2,17,100' },
+  { value: 'L14', label: 'Level 14 — Professor', range: '₹1,44,200 – 2,18,200' },
+  { value: 'L15', label: 'Level 15 — Senior Professor / HAG', range: '₹1,82,200 – 2,24,100' },
+];
+
 const EMPTY = {
   title: '',
   department: '',
@@ -25,6 +38,7 @@ const EMPTY = {
   location: '',
   experienceYears: 0,
   salaryDisclosed: '',
+  payLevel: '',
   vacancies: 1,
   reservation: { ...EMPTY_RESERVATION },
   deadline: '',
@@ -53,6 +67,7 @@ function jobToFormState(job) {
     location: job.location || '',
     experienceYears: job.experienceYears ?? 0,
     salaryDisclosed: job.salaryDisclosed || '',
+    payLevel: job.payLevel || '',
     vacancies: job.vacancies ?? 1,
     reservation: {
       UR: job.reservation?.UR ?? 0,
@@ -124,6 +139,7 @@ export default function PostJobForm({ onCreated, editJob, onSaved, onCancel }) {
     location: form.location.trim() || undefined,
     experienceYears: Number(form.experienceYears) || 0,
     salaryDisclosed: form.salaryDisclosed.trim() || undefined,
+    payLevel: form.payLevel || undefined,
     vacancies: Number(form.vacancies) || 1,
     reservation: {
       UR: Number(form.reservation.UR) || 0,
@@ -385,12 +401,38 @@ export default function PostJobForm({ onCreated, editJob, onSaved, onCancel }) {
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="salary">Salary (optional)</Label>
+              <Label htmlFor="payLevel">7th CPC pay level (optional)</Label>
+              <select
+                id="payLevel"
+                value={form.payLevel}
+                onChange={e => update('payLevel', e.target.value)}
+                className="flex h-10 w-full rounded-lg border border-border bg-white px-4 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+              >
+                <option value="">Not disclosed / Private-institution scale</option>
+                {PAY_LEVELS.map(p => (
+                  <option key={p.value} value={p.value}>
+                    {p.label}
+                  </option>
+                ))}
+              </select>
+              {form.payLevel && (
+                <div className="text-[11px] text-text-muted">
+                  Basic pay: {PAY_LEVELS.find(p => p.value === form.payLevel)?.range}
+                  <span className="italic"> (excl. HRA / DA)</span>
+                </div>
+              )}
+            </div>
+            <div className="md:col-span-2 space-y-2">
+              <Label htmlFor="salary">Salary — additional notes (optional)</Label>
               <Input
                 id="salary"
                 value={form.salaryDisclosed}
                 onChange={e => update('salaryDisclosed', e.target.value)}
-                placeholder="AGP Rs. 1,01,500 (Level 12)"
+                placeholder={
+                  form.payLevel
+                    ? 'e.g. Starting basic ₹1,44,200 · Consolidated ₹2.5L monthly'
+                    : 'e.g. AGP Rs. 1,01,500 (Level 12) — for non-CPC institutions'
+                }
               />
             </div>
             <div className="md:col-span-2 space-y-2">

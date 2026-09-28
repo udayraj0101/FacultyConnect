@@ -593,6 +593,7 @@ export async function cloneJob(sourceId, requesterId) {
     location: source.location,
     experienceYears: source.experienceYears,
     salaryDisclosed: source.salaryDisclosed,
+    payLevel: source.payLevel || undefined,
     vacancies: source.vacancies,
     reservation: {
       UR: source.reservation?.UR || 0,

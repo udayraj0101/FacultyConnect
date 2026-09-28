@@ -73,6 +73,18 @@ function StatusPill({ status }) {
   );
 }
 
+// Human-readable label for a 7th CPC academic pay level. Kept inline
+// (not imported from the admin form) because the JobBoard is faculty-
+// facing and shouldn't drag in admin-only constants.
+const PAY_LEVEL_LABELS = {
+  L10: 'Level 10 · Assistant Professor (Entry)',
+  L11: 'Level 11 · Assistant Professor (Senior Grade)',
+  L12: 'Level 12 · Assistant Professor (Senior Scale)',
+  L13A: 'Level 13A · Associate Professor',
+  L14: 'Level 14 · Professor',
+  L15: 'Level 15 · Senior Professor / HAG',
+};
+
 // Compact vacancy pill + optional reservation breakdown. Hidden entirely
 // when vacancies is 1 and no roster is set (the common private-institution
 // case), so we don't clutter cards for postings that don't need this data.
@@ -180,9 +192,24 @@ function JobCard({ job, appliedStatus, onApply, onReport, applying, index }) {
 
         <VacancyBreakdown vacancies={job.vacancies} reservation={job.reservation} />
 
-        {job.salaryDisclosed && (
-          <div className="inline-flex items-center gap-1 text-xs text-text-muted italic">
-            <IndianRupee size={12} /> {job.salaryDisclosed}
+        {(job.payLevel || job.salaryDisclosed) && (
+          <div className="flex flex-col gap-0.5 text-xs">
+            {job.payLevel && (
+              <div className="inline-flex items-center gap-1 text-text-light font-semibold">
+                <IndianRupee size={12} className="text-primary" />
+                {PAY_LEVEL_LABELS[job.payLevel] || job.payLevel}
+              </div>
+            )}
+            {job.salaryDisclosed && (
+              <div
+                className={`inline-flex items-center gap-1 text-text-muted italic ${
+                  job.payLevel ? 'pl-4' : ''
+                }`}
+              >
+                {!job.payLevel && <IndianRupee size={12} />}
+                {job.salaryDisclosed}
+              </div>
+            )}
           </div>
         )}
 

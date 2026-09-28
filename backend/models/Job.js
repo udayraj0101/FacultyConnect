@@ -10,6 +10,15 @@ const DESIGNATIONS = ['Assistant', 'Associate', 'Professor', 'Guest', 'Research'
 // returns every state so the CollegeAdmin can see their drafts + past.
 const STATUSES = ['draft', 'open', 'closed', 'archived'];
 
+// 7th CPC Academic Pay Levels used across UGC/AICTE-regulated
+// institutions. Central + State universities and IITs / IIMs follow
+// this scheme; private institutions may leave it blank and use the
+// free-text salaryDisclosed field instead. Storing the raw level key
+// (L10, L13A, etc.) rather than the pay band so the UI can format the
+// range consistently and future CPC revisions only need a label
+// change, not a data migration.
+const PAY_LEVELS = ['L10', 'L11', 'L12', 'L13A', 'L14', 'L15'];
+
 const jobSchema = new mongoose.Schema(
   {
     institutionId: {
@@ -28,6 +37,10 @@ const jobSchema = new mongoose.Schema(
     location: { type: String, default: null, trim: true },
     experienceYears: { type: Number, default: 0, min: 0 },
     salaryDisclosed: { type: String, default: null, trim: true },
+    // Optional structured pay band — coexists with the free-text
+    // salaryDisclosed above. UI prefers this when set; free-text is a
+    // fallback for institutions that don't follow the CPC scheme.
+    payLevel: { type: String, enum: [null, ...PAY_LEVELS], default: null },
     // Total seats advertised on this posting. Kept as an integer so we can
     // do arithmetic against the reservation breakup below. Defaults to 1
     // for backward compat with jobs created before this field existed.
@@ -79,6 +92,7 @@ jobSchema.methods.toPublicJSON = function toPublicJSON() {
     location: this.location,
     experienceYears: this.experienceYears,
     salaryDisclosed: this.salaryDisclosed,
+    payLevel: this.payLevel || null,
     vacancies: this.vacancies || 1,
     reservation: {
       UR: this.reservation?.UR || 0,
@@ -95,4 +109,4 @@ jobSchema.methods.toPublicJSON = function toPublicJSON() {
 };
 
 export const Job = mongoose.model('Job', jobSchema);
-export { DESIGNATIONS, STATUSES };
+export { DESIGNATIONS, STATUSES, PAY_LEVELS };

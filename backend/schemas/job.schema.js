@@ -1,6 +1,7 @@
 import { z } from 'zod';
 
 const DESIGNATIONS = ['Assistant', 'Associate', 'Professor', 'Guest', 'Research'];
+const PAY_LEVELS = ['L10', 'L11', 'L12', 'L13A', 'L14', 'L15'];
 
 // Reservation roster: UR/SC/ST/OBC/EWS are vertical (they SUM to the total
 // vacancy count). PwD is horizontal — seats carved OUT of the vertical
@@ -53,6 +54,12 @@ const createJobBase = z.object({
   location: z.string().trim().max(120).optional(),
   experienceYears: z.number().int().min(0).max(60).default(0),
   salaryDisclosed: z.string().trim().max(120).optional(),
+  // Empty string coerces to null so the UI can send "" from an unset
+  // dropdown without failing the enum check.
+  payLevel: z
+    .union([z.enum(PAY_LEVELS), z.literal(''), z.null()])
+    .transform(v => (v === '' || v == null ? null : v))
+    .optional(),
   vacancies: z.number().int().min(1).max(500).default(1),
   reservation: reservationSchema,
   deadline: z.coerce.date(),
