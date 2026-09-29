@@ -13,3 +13,15 @@ export async function publicProfileHandler(req, res) {
     });
   }
 }
+
+export async function publicInstitutionHandler(req, res) {
+  try {
+    const institution = await publicService.getPublicInstitution(req.params.id);
+    res.set('Cache-Control', 'public, max-age=300');
+    return res.status(200).json({ institution });
+  } catch (error) {
+    return res.status(error.status || 500).json({
+      error: { code: error.code || 'INSTITUTION_FAILED', message: error.message },
+    });
+  }
+}

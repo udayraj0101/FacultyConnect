@@ -25,6 +25,11 @@ export async function getPublicProfile(id) {
   return data.profile;
 }
 
+export async function getPublicInstitution(handleOrId) {
+  const { data } = await api.get(`/public/institution/${handleOrId}`);
+  return data.institution;
+}
+
 export async function getOrcidAuthorizeUrl() {
   const { data } = await api.get('/auth/orcid/redirect');
   return data.authorizeUrl;

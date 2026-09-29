@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import rateLimit from 'express-rate-limit';
-import { publicProfileHandler } from '../controllers/public.controller.js';
+import { publicProfileHandler, publicInstitutionHandler } from '../controllers/public.controller.js';
 
 // Public endpoints — no authentication. Rate-limited to blunt scrapers
 // per PRD §8. 120 req/min/IP is generous for genuine share/preview
@@ -18,5 +18,6 @@ const publicLimiter = rateLimit({
 const router = Router();
 
 router.get('/faculty/:id', publicLimiter, publicProfileHandler);
+router.get('/institution/:id', publicLimiter, publicInstitutionHandler);
 
 export default router;

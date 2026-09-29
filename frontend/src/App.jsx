@@ -24,6 +24,7 @@ import Login from './pages/Login';
 import Signup from './pages/Signup';
 import Landing from './pages/Landing';
 import PublicProfile from './pages/PublicProfile';
+import PublicInstitution from './pages/PublicInstitution';
 import Onboarding from './pages/Onboarding';
 import ForgotPassword from './pages/ForgotPassword';
 import ResetPassword from './pages/ResetPassword';
@@ -71,6 +72,7 @@ export default function App() {
 
             {/* Public SEO profile — no auth required, renders even for anon visitors. */}
             <Route path="/f/:id" element={<PublicProfile />} />
+            <Route path="/inst/:id" element={<PublicInstitution />} />
 
             {/* Faculty portal: top nav shell */}
             <Route
