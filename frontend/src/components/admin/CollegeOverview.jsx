@@ -4,6 +4,10 @@ import {
   Users2,
   UserCheck2,
   ClipboardList,
+  Quote,
+  TrendingUp,
+  FileText,
+  IndianRupee,
 } from 'lucide-react';
 import HeroBanner from '../dashboard/HeroBanner';
 import StatCard from '../dashboard/StatCard';
@@ -13,6 +17,23 @@ import SectionCard from '../dashboard/SectionCard';
 import { SkeletonList } from '../ui/Skeleton';
 import { Alert, AlertDescription } from '../ui/Alert';
 import { getCollegeOverview } from '../../services/admin.service';
+
+// Compact number formatter for the metric tiles. Keeps totals scannable
+// even for large institutions — a research uni's citation count runs to
+// six-plus figures. Uses Indian numbering conventions (Lakh / Crore)
+// for grant value since audiences read that faster than "M / B" here.
+function formatCount(n) {
+  if (!Number.isFinite(n)) return '0';
+  if (n >= 1_00_000) return `${(n / 1_00_000).toFixed(1)}L`;
+  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
+  return String(n);
+}
+function formatInr(amount) {
+  if (!Number.isFinite(amount) || amount <= 0) return '₹0';
+  if (amount >= 1_00_00_000) return `₹${(amount / 1_00_00_000).toFixed(2)} Cr`;
+  if (amount >= 1_00_000) return `₹${(amount / 1_00_000).toFixed(1)} L`;
+  return `₹${amount.toLocaleString('en-IN')}`;
+}
 
 const STATUS_PILL = {
   open: 'bg-success/10 text-success border-success/30',
@@ -62,8 +83,9 @@ export default function CollegeOverview({ onOpenSection }) {
     );
   }
 
-  const { institution, counts, applicantsBreakdown, recentJobs } = data;
+  const { institution, counts, applicantsBreakdown, recentJobs, research } = data;
   const totalApps = counts.totalApplications;
+  const hasResearchData = research && research.verifiedFaculty > 0;
 
   return (
     <div className="space-y-6">
@@ -112,6 +134,91 @@ export default function CollegeOverview({ onOpenSection }) {
           sublabel={institution.subscriptionTier === 'paid' ? 'Paid tier' : 'Free tier'}
         />
       </div>
+
+      {hasResearchData && (
+        <SectionCard
+          title="Research output"
+          subtitle={`Aggregated across ${research.verifiedFaculty} verified faculty. Reflects data reconciled from ORCID / Scopus / manual entry.`}
+        >
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
+            <div className="rounded-xl border border-border bg-white p-4">
+              <div className="flex items-center justify-between">
+                <Quote size={18} className="text-primary" />
+                <span className="text-2xl font-extrabold text-secondary tabular-nums">
+                  {formatCount(research.totalCitations)}
+                </span>
+              </div>
+              <div className="text-[11px] uppercase tracking-wider text-text-muted font-semibold mt-2">
+                Total citations
+              </div>
+            </div>
+            <div className="rounded-xl border border-border bg-white p-4">
+              <div className="flex items-center justify-between">
+                <TrendingUp size={18} className="text-accent" />
+                <div className="text-right">
+                  <div className="text-2xl font-extrabold text-secondary tabular-nums">
+                    {research.avgHIndex}
+                  </div>
+                  <div className="text-[10px] text-text-muted">
+                    max {research.maxHIndex}
+                  </div>
+                </div>
+              </div>
+              <div className="text-[11px] uppercase tracking-wider text-text-muted font-semibold mt-2">
+                Avg h-index
+              </div>
+            </div>
+            <div className="rounded-xl border border-border bg-white p-4">
+              <div className="flex items-center justify-between">
+                <FileText size={18} className="text-secondary" />
+                <span className="text-2xl font-extrabold text-secondary tabular-nums">
+                  {formatCount(research.totalPublications)}
+                </span>
+              </div>
+              <div className="text-[11px] uppercase tracking-wider text-text-muted font-semibold mt-2">
+                Publications
+              </div>
+            </div>
+            <div className="rounded-xl border border-border bg-white p-4">
+              <div className="flex items-center justify-between">
+                <IndianRupee size={18} className="text-warning" />
+                <div className="text-right">
+                  <div className="text-2xl font-extrabold text-secondary tabular-nums">
+                    {formatInr(research.totalGrantValue).replace(/^₹/, '')}
+                  </div>
+                  <div className="text-[10px] text-text-muted">
+                    {research.facultyWithGrants} faculty
+                  </div>
+                </div>
+              </div>
+              <div className="text-[11px] uppercase tracking-wider text-text-muted font-semibold mt-2">
+                Grants received
+              </div>
+            </div>
+          </div>
+
+          {research.topDomains.length > 0 && (
+            <div className="mt-4 pt-4 border-t border-border">
+              <div className="text-[11px] uppercase tracking-wider text-text-muted font-semibold mb-2">
+                Top research areas
+              </div>
+              <div className="flex flex-wrap gap-1.5">
+                {research.topDomains.map(d => (
+                  <span
+                    key={d.tag}
+                    className="inline-flex items-center gap-1 rounded-full bg-primary/5 text-primary border border-primary/10 px-2.5 py-1 text-xs font-medium"
+                  >
+                    {d.tag}
+                    <span className="tabular-nums text-[10px] bg-primary/10 rounded-full px-1.5 py-0.5">
+                      {d.count}
+                    </span>
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+        </SectionCard>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <SectionCard
