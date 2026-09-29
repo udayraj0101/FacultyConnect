@@ -34,7 +34,13 @@ async function issueTokens(faculty) {
   return { accessToken, refreshToken };
 }
 
-export async function signup({ name, email, password, designation, institutionId }) {
+// Bumping this string invalidates any assumption of prior consent —
+// use it when the privacy policy materially changes so we can prompt
+// users to re-accept. Kept in this file rather than a shared config
+// because signup + onboarding are the only current writers.
+const CURRENT_POLICY_VERSION = '2026-01-dpdp-v1';
+
+export async function signup({ name, email, password, designation, institutionId, consent }) {
   const existing = await Faculty.findOne({ email });
   if (existing) {
     const err = new Error('Email already registered');
@@ -73,6 +79,11 @@ export async function signup({ name, email, password, designation, institutionId
     role: 'Faculty',
     institutionId: resolvedInstitutionId,
     verificationStatus,
+    // Zod schema at the API boundary guarantees consent === true, but we
+    // only stamp the timestamp when the flag actually arrived so we
+    // don't lie in the audit trail if a future path skips validation.
+    consentAcceptedAt: consent === true ? new Date() : null,
+    consentPolicyVersion: consent === true ? CURRENT_POLICY_VERSION : null,
   });
   logger.info('faculty signed up', {
     facultyId: faculty._id.toString(),

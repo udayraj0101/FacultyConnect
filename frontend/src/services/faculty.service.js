@@ -49,6 +49,36 @@ export async function downloadCv(template) {
   window.URL.revokeObjectURL(url);
 }
 
+// DPDP Act 2023 — download all data the platform holds for the current
+// user, as a single JSON blob. Same trigger pattern as CV download so
+// the browser prompts a Save-As instead of navigating.
+export async function downloadMyData() {
+  const response = await api.get('/faculty/me/dpdp/export', {
+    responseType: 'blob',
+  });
+  const disposition = response.headers['content-disposition'] || '';
+  const match = disposition.match(/filename="?([^";]+)"?/i);
+  const filename = match ? match[1] : 'facultyconnect-mydata.json';
+  const url = window.URL.createObjectURL(response.data);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  window.URL.revokeObjectURL(url);
+}
+
+export async function requestAccountErasure() {
+  const { data } = await api.post('/faculty/me/dpdp/erasure');
+  return data;
+}
+
+export async function cancelAccountErasure() {
+  const { data } = await api.post('/faculty/me/dpdp/erasure/cancel');
+  return data;
+}
+
 export async function addPublication(payload) {
   const { data } = await api.post('/faculty/me/publications', payload);
   return data.publication;

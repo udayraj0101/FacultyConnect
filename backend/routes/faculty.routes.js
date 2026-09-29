@@ -24,6 +24,11 @@ import {
   deletePublicationHandler,
 } from '../controllers/publication.controller.js';
 import { exportCvHandler } from '../controllers/cv.controller.js';
+import {
+  exportMyDataHandler,
+  requestErasureHandler,
+  cancelErasureHandler,
+} from '../controllers/dpdp.controller.js';
 import { collegeOverviewHandler } from '../controllers/stats.controller.js';
 import {
   getCasScoreHandler,
@@ -56,6 +61,11 @@ router.post('/me/import/scopus', importScopusHandler);
 router.post('/me/import/scholar-csv', importScholarCsvHandler);
 
 router.get('/me/cv/export', exportCvHandler);
+
+// DPDP Act 2023 self-service tools.
+router.get('/me/dpdp/export', exportMyDataHandler);
+router.post('/me/dpdp/erasure', requestErasureHandler);
+router.post('/me/dpdp/erasure/cancel', cancelErasureHandler);
 // CA-02: institutional aggregates are console content, not faculty-facing.
 // Plain Faculty tokens got the same admin stats until we added this gate.
 router.get(

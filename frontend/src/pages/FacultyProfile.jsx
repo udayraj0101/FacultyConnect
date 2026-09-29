@@ -21,6 +21,7 @@ import PublicationsCard from '../components/profile/PublicationsCard';
 import DirectoryVisibilityCard from '../components/profile/DirectoryVisibilityCard';
 import PublicProfileCard from '../components/profile/PublicProfileCard';
 import OpenToCard from '../components/profile/OpenToCard';
+import DpdpToolsCard from '../components/profile/DpdpToolsCard';
 import { useProfile } from '../hooks/useProfile';
 import { usePublications } from '../hooks/usePublications';
 
@@ -338,6 +339,11 @@ export default function FacultyProfile() {
         <PublicProfileCard
           faculty={faculty}
           onToggle={profile.togglePublicProfile}
+          onError={setError}
+        />
+        <DpdpToolsCard
+          faculty={faculty}
+          onErasureChange={profile.refetch}
           onError={setError}
         />
       </section>

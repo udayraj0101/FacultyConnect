@@ -83,7 +83,7 @@ export async function previewInvitation(compositeToken) {
  * verified (invited-in accounts are pre-approved — the college admin
  * vouched by adding them), and clear the token.
  */
-export async function completeOnboarding(compositeToken, { password }) {
+export async function completeOnboarding(compositeToken, { password, consent }) {
   const faculty = await verifyToken(compositeToken);
   const invitedByFacultyId = faculty.invitedByFacultyId;
   faculty.passwordHash = await bcrypt.hash(password, BCRYPT_ROUNDS);
@@ -91,6 +91,13 @@ export async function completeOnboarding(compositeToken, { password }) {
   faculty.onboardingTokenExpires = null;
   // Invited faculty are pre-verified — college admin vouched for them.
   faculty.verificationStatus = 'verified';
+  // DPDP audit — stamp consent at claim time. Zod at the API boundary
+  // guarantees consent === true; conditional here so we don't backfill
+  // a truthy timestamp if a future caller bypasses the schema.
+  if (consent === true) {
+    faculty.consentAcceptedAt = new Date();
+    faculty.consentPolicyVersion = '2026-01-dpdp-v1';
+  }
   await faculty.save();
   logger.info('onboarding completed', { facultyId: faculty._id.toString() });
 

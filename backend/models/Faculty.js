@@ -119,6 +119,21 @@ const facultySchema = new mongoose.Schema(
     // window of exposure). Cleared on successful completion.
     passwordResetTokenHash: { type: String, default: null },
     passwordResetTokenExpires: { type: Date, default: null },
+    // DPDP Act 2023 audit fields.
+    //   consentAcceptedAt      — timestamped record of when the user
+    //     accepted the privacy policy (at signup or onboarding). Null
+    //     for legacy accounts created before this field existed —
+    //     those fall back to createdAt in the UI.
+    //   consentPolicyVersion   — which version of the policy they
+    //     agreed to. Bump this string when the policy changes and
+    //     prompt users to re-consent on next login.
+    //   deletionScheduledFor   — set when the user requests account
+    //     erasure. Grace period runs until this timestamp; the
+    //     nightly scheduler hard-deletes past-due accounts. Cleared
+    //     when the user cancels the deletion.
+    consentAcceptedAt: { type: Date, default: null },
+    consentPolicyVersion: { type: String, default: null },
+    deletionScheduledFor: { type: Date, default: null, index: true },
     designation: { type: String, enum: DESIGNATIONS, default: 'Assistant' },
     department: { type: String, trim: true, default: '' },
     bio: { type: String, trim: true, default: '', maxlength: 1000 },
@@ -282,6 +297,16 @@ facultySchema.methods.toPublicJSON = function toPublicJSON() {
     awaitingOnboarding: !this.passwordHash,
     invitedAt: this.invitedAt,
     verificationStatus: this.verificationStatus,
+    // DPDP surface — lets the UI show consent status + any pending
+    // erasure without a separate endpoint call. The full audit only
+    // appears in the /dpdp/export payload.
+    consentAcceptedAt: this.consentAcceptedAt || null,
+    consentPolicyVersion: this.consentPolicyVersion || null,
+    deletionScheduledFor: this.deletionScheduledFor || null,
+    // Legacy accounts pre-date the consent audit — the UI falls back
+    // to createdAt so it can render "at account creation" rather than
+    // an alarming empty date.
+    createdAt: this.createdAt || null,
     bookmarkedOpportunityIds: (this.bookmarkedOpportunityIds || []).map(x => x.toString()),
     institutionId: populatedInst ? populatedInst.id : inst ? inst.toString() : null,
     institution: populatedInst,

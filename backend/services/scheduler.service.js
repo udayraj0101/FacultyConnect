@@ -5,6 +5,7 @@ import { SavedSearch } from '../models/SavedSearch.js';
 import { importFromOrcid } from './publication.service.js';
 import { listOpportunities } from './opportunity.service.js';
 import { notify } from './notification.service.js';
+import { sweepExpiredErasures } from './dpdp.service.js';
 import { lookupIssn } from '../data/ugcCareList.js';
 import { createLogger } from '../utils/logger.js';
 
@@ -265,9 +266,39 @@ export function startScheduler() {
     { timezone },
   );
 
+  // 03:30 IST daily — DPDP erasure sweep. Hard-deletes any account
+  // whose 7-day grace period has elapsed, along with every record it
+  // owns across the other collections. Runs late so overnight users
+  // in different tz can still log in and cancel a same-day request.
+  cron.schedule(
+    '30 3 * * *',
+    () => {
+      logger.info('cron fire: dpdp erasure sweep');
+      sweepExpiredErasures()
+        .then(r =>
+          logger.info('dpdp erasure sweep complete', {
+            processed: r.processed,
+            deleted: r.deleted,
+          }),
+        )
+        .catch(err =>
+          logger.error('dpdp erasure sweep crashed', {
+            error: err.message,
+            stack: err.stack,
+          }),
+        );
+    },
+    { timezone },
+  );
+
   logger.info('scheduler started', {
     timezone,
-    jobs: ['orcid-resync@02:00', 'ugc-care-resync@02:30', 'saved-search-alerts@03:00'],
+    jobs: [
+      'orcid-resync@02:00',
+      'ugc-care-resync@02:30',
+      'saved-search-alerts@03:00',
+      'dpdp-erasure-sweep@03:30',
+    ],
   });
   return { started: true, timezone };
 }
