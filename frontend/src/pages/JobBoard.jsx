@@ -11,6 +11,8 @@ import {
   CheckCircle2,
   Flag,
   Users,
+  FileText,
+  ExternalLink,
 } from 'lucide-react';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
@@ -83,6 +85,16 @@ const PAY_LEVEL_LABELS = {
   L13A: 'Level 13A · Associate Professor',
   L14: 'Level 14 · Professor',
   L15: 'Level 15 · Senior Professor / HAG',
+};
+
+// Employment type labels — enum keys stay short in the DB for indexing;
+// UI labels are user-friendly. Colours match tenure connotations
+// (permanent = green, contract/visiting = neutral/warm).
+const EMPLOYMENT_TYPE_META = {
+  regular: { label: 'Regular', tone: 'bg-success/10 text-success border-success/30' },
+  tenure_track: { label: 'Tenure-track', tone: 'bg-primary/10 text-primary border-primary/30' },
+  contract: { label: 'Contract', tone: 'bg-yellow-100 text-yellow-800 border-yellow-300' },
+  visiting: { label: 'Visiting', tone: 'bg-muted text-text-muted border-border' },
 };
 
 // Compact vacancy pill + optional reservation breakdown. Hidden entirely
@@ -167,6 +179,13 @@ function JobCard({ job, appliedStatus, onApply, onReport, applying, index }) {
 
         <div className="text-sm text-text-muted flex items-center gap-3 flex-wrap">
           <span>{job.department}</span>
+          {job.employmentType && EMPLOYMENT_TYPE_META[job.employmentType] && (
+            <span
+              className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase ${EMPLOYMENT_TYPE_META[job.employmentType].tone}`}
+            >
+              {EMPLOYMENT_TYPE_META[job.employmentType].label}
+            </span>
+          )}
           {job.location && (
             <span className="inline-flex items-center gap-1">
               <MapPin size={12} /> {job.location}
@@ -174,6 +193,17 @@ function JobCard({ job, appliedStatus, onApply, onReport, applying, index }) {
           )}
           {job.experienceYears ? <span>· {job.experienceYears}+ years</span> : null}
         </div>
+        {job.advertisementUrl && (
+          <a
+            href={job.advertisementUrl}
+            target="_blank"
+            rel="noreferrer noopener"
+            className="inline-flex items-center gap-1 text-xs text-primary font-semibold hover:underline w-fit"
+          >
+            <FileText size={12} /> View official notification
+            <ExternalLink size={10} className="opacity-70" />
+          </a>
+        )}
 
         <p className="text-sm text-text-muted line-clamp-3 leading-relaxed">{job.description}</p>
 
@@ -236,6 +266,21 @@ function JobCard({ job, appliedStatus, onApply, onReport, applying, index }) {
           </div>
           {applied ? (
             <span className="text-xs text-text-muted italic">Already applied</span>
+          ) : job.externalApplyUrl ? (
+            // Institution runs its own recruitment portal — send the
+            // candidate there directly instead of collecting the
+            // application in-app. Backend also guards this: apply()
+            // rejects with EXTERNAL_APPLY_ONLY if a client tries to
+            // POST /apply on a posting with externalApplyUrl set.
+            <a
+              href={job.externalApplyUrl}
+              target="_blank"
+              rel="noreferrer noopener"
+              className="inline-flex items-center gap-1 rounded-md bg-primary text-white hover:bg-primary/90 text-sm font-medium px-3 py-1.5 transition-colors"
+            >
+              Apply on institution site
+              <ExternalLink size={12} />
+            </a>
           ) : (
             <Button size="sm" onClick={() => onApply(job)} disabled={applying}>
               {applying ? 'Applying…' : 'Apply'}

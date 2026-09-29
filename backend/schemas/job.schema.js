@@ -2,6 +2,19 @@ import { z } from 'zod';
 
 const DESIGNATIONS = ['Assistant', 'Associate', 'Professor', 'Guest', 'Research'];
 const PAY_LEVELS = ['L10', 'L11', 'L12', 'L13A', 'L14', 'L15'];
+const EMPLOYMENT_TYPES = ['regular', 'tenure_track', 'contract', 'visiting'];
+
+// URL validator with empty-string tolerance. The admin form sends ""
+// when a field is unset; without the transform, zod's url() would
+// reject that and force the frontend to strip empties before POSTing.
+// Only http/https allowed — no javascript:, mailto:, or data: URLs.
+const optionalHttpsUrl = z
+  .union([z.string().trim().url(), z.literal(''), z.null()])
+  .transform(v => (v === '' || v == null ? null : v))
+  .refine(v => v == null || /^https?:\/\//i.test(v), {
+    message: 'Must be an http:// or https:// URL',
+  })
+  .optional();
 
 // Reservation roster: UR/SC/ST/OBC/EWS are vertical (they SUM to the total
 // vacancy count). PwD is horizontal — seats carved OUT of the vertical
@@ -60,6 +73,12 @@ const createJobBase = z.object({
     .union([z.enum(PAY_LEVELS), z.literal(''), z.null()])
     .transform(v => (v === '' || v == null ? null : v))
     .optional(),
+  employmentType: z
+    .union([z.enum(EMPLOYMENT_TYPES), z.literal(''), z.null()])
+    .transform(v => (v === '' || v == null ? null : v))
+    .optional(),
+  advertisementUrl: optionalHttpsUrl,
+  externalApplyUrl: optionalHttpsUrl,
   vacancies: z.number().int().min(1).max(500).default(1),
   reservation: reservationSchema,
   deadline: z.coerce.date(),

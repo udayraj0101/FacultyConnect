@@ -19,6 +19,12 @@ const STATUSES = ['draft', 'open', 'closed', 'archived'];
 // change, not a data migration.
 const PAY_LEVELS = ['L10', 'L11', 'L12', 'L13A', 'L14', 'L15'];
 
+// Employment type — used by the JobBoard card to badge each posting
+// so faculty can filter tenure-track vs contract at a glance. Kept
+// separate from `designation` (Assistant/Associate/Professor/etc.)
+// because those are role titles; this is the contract shape.
+const EMPLOYMENT_TYPES = ['regular', 'tenure_track', 'contract', 'visiting'];
+
 const jobSchema = new mongoose.Schema(
   {
     institutionId: {
@@ -41,6 +47,21 @@ const jobSchema = new mongoose.Schema(
     // salaryDisclosed above. UI prefers this when set; free-text is a
     // fallback for institutions that don't follow the CPC scheme.
     payLevel: { type: String, enum: [null, ...PAY_LEVELS], default: null },
+    employmentType: {
+      type: String,
+      enum: [null, ...EMPLOYMENT_TYPES],
+      default: null,
+    },
+    // Optional URL to the institution's official notification / GO PDF
+    // hosted on their own domain. We don't self-host these — most
+    // institutions already have a careers page and legal wants us to
+    // link out rather than proxy. Validated as URL at the API boundary.
+    advertisementUrl: { type: String, default: null, trim: true, maxlength: 500 },
+    // Optional external apply URL. When set, the JobBoard card swaps
+    // the in-app Apply button for a "Apply on institution site →" link.
+    // Useful for institutions with their own recruitment portal that
+    // can't accept applications via our API.
+    externalApplyUrl: { type: String, default: null, trim: true, maxlength: 500 },
     // Total seats advertised on this posting. Kept as an integer so we can
     // do arithmetic against the reservation breakup below. Defaults to 1
     // for backward compat with jobs created before this field existed.
@@ -93,6 +114,9 @@ jobSchema.methods.toPublicJSON = function toPublicJSON() {
     experienceYears: this.experienceYears,
     salaryDisclosed: this.salaryDisclosed,
     payLevel: this.payLevel || null,
+    employmentType: this.employmentType || null,
+    advertisementUrl: this.advertisementUrl || null,
+    externalApplyUrl: this.externalApplyUrl || null,
     vacancies: this.vacancies || 1,
     reservation: {
       UR: this.reservation?.UR || 0,
@@ -109,4 +133,4 @@ jobSchema.methods.toPublicJSON = function toPublicJSON() {
 };
 
 export const Job = mongoose.model('Job', jobSchema);
-export { DESIGNATIONS, STATUSES, PAY_LEVELS };
+export { DESIGNATIONS, STATUSES, PAY_LEVELS, EMPLOYMENT_TYPES };

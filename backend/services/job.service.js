@@ -112,6 +112,17 @@ export async function apply(jobId, facultyId) {
     err.status = 400;
     throw err;
   }
+  // Postings that route through an external portal don't accept in-app
+  // applications — the frontend hides the Apply button, but we double-
+  // guard here so a direct API caller can't slip past that UI.
+  if (job.externalApplyUrl) {
+    const err = new Error(
+      'This posting only accepts applications on the institution site. Follow the external link on the posting.',
+    );
+    err.code = 'EXTERNAL_APPLY_ONLY';
+    err.status = 400;
+    throw err;
+  }
   try {
     const app = await Application.create({ jobId, facultyId, status: 'applied' });
     return app;
@@ -594,6 +605,9 @@ export async function cloneJob(sourceId, requesterId) {
     experienceYears: source.experienceYears,
     salaryDisclosed: source.salaryDisclosed,
     payLevel: source.payLevel || undefined,
+    employmentType: source.employmentType || undefined,
+    advertisementUrl: source.advertisementUrl || undefined,
+    externalApplyUrl: source.externalApplyUrl || undefined,
     vacancies: source.vacancies,
     reservation: {
       UR: source.reservation?.UR || 0,

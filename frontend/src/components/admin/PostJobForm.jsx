@@ -29,6 +29,14 @@ const PAY_LEVELS = [
   { value: 'L15', label: 'Level 15 — Senior Professor / HAG', range: '₹1,82,200 – 2,24,100' },
 ];
 
+// Employment type — mirrored in backend/models/Job.js.
+const EMPLOYMENT_TYPES = [
+  { value: 'regular', label: 'Regular / Permanent' },
+  { value: 'tenure_track', label: 'Tenure-track' },
+  { value: 'contract', label: 'Contract' },
+  { value: 'visiting', label: 'Visiting' },
+];
+
 const EMPTY = {
   title: '',
   department: '',
@@ -39,6 +47,9 @@ const EMPTY = {
   experienceYears: 0,
   salaryDisclosed: '',
   payLevel: '',
+  employmentType: '',
+  advertisementUrl: '',
+  externalApplyUrl: '',
   vacancies: 1,
   reservation: { ...EMPTY_RESERVATION },
   deadline: '',
@@ -68,6 +79,9 @@ function jobToFormState(job) {
     experienceYears: job.experienceYears ?? 0,
     salaryDisclosed: job.salaryDisclosed || '',
     payLevel: job.payLevel || '',
+    employmentType: job.employmentType || '',
+    advertisementUrl: job.advertisementUrl || '',
+    externalApplyUrl: job.externalApplyUrl || '',
     vacancies: job.vacancies ?? 1,
     reservation: {
       UR: job.reservation?.UR ?? 0,
@@ -140,6 +154,9 @@ export default function PostJobForm({ onCreated, editJob, onSaved, onCancel }) {
     experienceYears: Number(form.experienceYears) || 0,
     salaryDisclosed: form.salaryDisclosed.trim() || undefined,
     payLevel: form.payLevel || undefined,
+    employmentType: form.employmentType || undefined,
+    advertisementUrl: form.advertisementUrl.trim() || undefined,
+    externalApplyUrl: form.externalApplyUrl.trim() || undefined,
     vacancies: Number(form.vacancies) || 1,
     reservation: {
       UR: Number(form.reservation.UR) || 0,
@@ -261,6 +278,22 @@ export default function PostJobForm({ onCreated, editJob, onSaved, onCancel }) {
                 {DESIGNATIONS.map(d => (
                   <option key={d} value={d}>
                     {d}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="employmentType">Employment type (optional)</Label>
+              <select
+                id="employmentType"
+                value={form.employmentType}
+                onChange={e => update('employmentType', e.target.value)}
+                className="flex h-10 w-full rounded-lg border border-border bg-white px-4 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+              >
+                <option value="">Not specified</option>
+                {EMPLOYMENT_TYPES.map(t => (
+                  <option key={t.value} value={t.value}>
+                    {t.label}
                   </option>
                 ))}
               </select>
@@ -434,6 +467,37 @@ export default function PostJobForm({ onCreated, editJob, onSaved, onCancel }) {
                     : 'e.g. AGP Rs. 1,01,500 (Level 12) — for non-CPC institutions'
                 }
               />
+            </div>
+            <div className="md:col-span-2 space-y-2">
+              <Label htmlFor="advertisementUrl">
+                Official advertisement / notification URL (optional)
+              </Label>
+              <Input
+                id="advertisementUrl"
+                type="url"
+                value={form.advertisementUrl}
+                onChange={e => update('advertisementUrl', e.target.value)}
+                placeholder="https://iitm.ac.in/careers/notice-2026.pdf"
+              />
+              <div className="text-[11px] text-text-muted">
+                Link to the institution's official notification PDF hosted on your own site.
+                Faculty will see a "View official notification" link on the posting.
+              </div>
+            </div>
+            <div className="md:col-span-2 space-y-2">
+              <Label htmlFor="externalApplyUrl">External apply link (optional)</Label>
+              <Input
+                id="externalApplyUrl"
+                type="url"
+                value={form.externalApplyUrl}
+                onChange={e => update('externalApplyUrl', e.target.value)}
+                placeholder="https://recruit.iitm.ac.in/apply/12345"
+              />
+              <div className="text-[11px] text-text-muted">
+                If set, the Apply button on this posting opens your institution's site in a
+                new tab instead of accepting applications through FacultyConnect. Leave blank
+                to keep in-app applications.
+              </div>
             </div>
             <div className="md:col-span-2 space-y-2">
               <Label htmlFor="tags">Research domain tags (comma-separated)</Label>

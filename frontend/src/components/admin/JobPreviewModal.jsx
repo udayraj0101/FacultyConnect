@@ -8,6 +8,8 @@ import {
   CalendarClock,
   Users,
   BadgeCheck,
+  FileText,
+  ExternalLink,
 } from 'lucide-react';
 import { Button } from '../ui/Button';
 
@@ -30,6 +32,13 @@ const PAY_LEVEL_LABELS = {
   L13A: 'Level 13A · Associate Professor',
   L14: 'Level 14 · Professor',
   L15: 'Level 15 · Senior Professor / HAG',
+};
+
+const EMPLOYMENT_TYPE_META = {
+  regular: { label: 'Regular', tone: 'bg-success/10 text-success border-success/30' },
+  tenure_track: { label: 'Tenure-track', tone: 'bg-primary/10 text-primary border-primary/30' },
+  contract: { label: 'Contract', tone: 'bg-yellow-100 text-yellow-800 border-yellow-300' },
+  visiting: { label: 'Visiting', tone: 'bg-muted text-text-muted border-border' },
 };
 
 function daysUntil(deadline) {
@@ -165,6 +174,13 @@ export default function JobPreviewModal({ payload, onClose }) {
 
                 <div className="text-sm text-text-muted flex items-center gap-3 flex-wrap">
                   <span>{payload.department || '—'}</span>
+                  {payload.employmentType && EMPLOYMENT_TYPE_META[payload.employmentType] && (
+                    <span
+                      className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase ${EMPLOYMENT_TYPE_META[payload.employmentType].tone}`}
+                    >
+                      {EMPLOYMENT_TYPE_META[payload.employmentType].label}
+                    </span>
+                  )}
                   {payload.location && (
                     <span className="inline-flex items-center gap-1">
                       <MapPin size={12} /> {payload.location}
@@ -174,6 +190,17 @@ export default function JobPreviewModal({ payload, onClose }) {
                     <span>· {payload.experienceYears}+ years</span>
                   ) : null}
                 </div>
+                {payload.advertisementUrl && (
+                  <a
+                    href={payload.advertisementUrl}
+                    target="_blank"
+                    rel="noreferrer noopener"
+                    className="inline-flex items-center gap-1 text-xs text-primary font-semibold hover:underline w-fit"
+                  >
+                    <FileText size={12} /> View official notification
+                    <ExternalLink size={10} className="opacity-70" />
+                  </a>
+                )}
 
                 <p className="text-sm text-text-muted line-clamp-3 leading-relaxed">
                   {payload.description || '(No description yet)'}
@@ -235,13 +262,23 @@ export default function JobPreviewModal({ payload, onClose }) {
                     {payload.deadline &&
                       ` · ${days > 0 ? `${days}d left` : 'closed'}`}
                   </div>
-                  <button
-                    disabled
-                    className="rounded-md bg-primary text-white text-sm font-medium px-3 py-1.5 opacity-60 cursor-not-allowed"
-                    title="Preview only"
-                  >
-                    Apply
-                  </button>
+                  {payload.externalApplyUrl ? (
+                    <span
+                      className="inline-flex items-center gap-1 rounded-md bg-primary text-white text-sm font-medium px-3 py-1.5 opacity-60 cursor-not-allowed"
+                      title="Preview only — faculty will be sent to your institution site"
+                    >
+                      Apply on institution site
+                      <ExternalLink size={12} />
+                    </span>
+                  ) : (
+                    <button
+                      disabled
+                      className="rounded-md bg-primary text-white text-sm font-medium px-3 py-1.5 opacity-60 cursor-not-allowed"
+                      title="Preview only"
+                    >
+                      Apply
+                    </button>
+                  )}
                 </div>
               </div>
             </article>
