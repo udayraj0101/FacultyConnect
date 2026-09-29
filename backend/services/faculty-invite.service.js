@@ -216,6 +216,60 @@ export async function inviteBulkByActor(actorId, entries, { allowDomainMismatch 
 }
 
 /**
+ * Resend the onboarding invitation for a faculty who never claimed it.
+ * Refuses to resend to accounts that already have a password (claim
+ * complete) or that belong to another institution. Institution-scoped:
+ * the actor must be a CollegeAdmin at the same institution as the
+ * invitee. Reissues a fresh token (so old links become invalid) and
+ * sends a new email.
+ */
+export async function resendInviteByActor(actorId, facultyId) {
+  const { actor, institution } = await resolveActorInstitution(actorId);
+  const target = await Faculty.findById(facultyId);
+  if (!target) {
+    const err = new Error('Faculty not found');
+    err.code = 'FACULTY_NOT_FOUND';
+    err.status = 404;
+    throw err;
+  }
+  if (
+    !target.institutionId ||
+    target.institutionId.toString() !== institution._id.toString()
+  ) {
+    const err = new Error('You can only resend invites for faculty in your institution');
+    err.code = 'FORBIDDEN';
+    err.status = 403;
+    throw err;
+  }
+  if (target.passwordHash) {
+    const err = new Error(
+      'This faculty already completed onboarding — no invite to resend.',
+    );
+    err.code = 'ALREADY_ONBOARDED';
+    err.status = 409;
+    throw err;
+  }
+  // Refresh the invite timestamp too — makes "last invited on <date>" a
+  // truthful field on the roster row.
+  target.invitedAt = new Date();
+  target.invitedByFacultyId = actor._id;
+  await target.save();
+  const token = await issueOnboardingToken(target._id);
+  await sendFacultyInvite({
+    toEmail: target.email,
+    toName: target.name,
+    invitedByName: actor.name,
+    institutionName: institution.name,
+    token,
+  });
+  logger.info('invite resent', {
+    facultyId: target._id.toString(),
+    institutionId: institution._id.toString(),
+  });
+  return { status: 'resent', email: target.email, facultyId: target._id.toString() };
+}
+
+/**
  * Offboard a roster member. Two paths:
  *   - `purge=true` + unclaimed account → hard-delete the placeholder
  *     Faculty doc. Cleans up test invites (like qa-noreply@example.com)

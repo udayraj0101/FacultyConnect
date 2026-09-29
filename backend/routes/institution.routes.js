@@ -11,6 +11,7 @@ import {
   approveHandler,
   rejectHandler,
   offboardHandler,
+  resendInviteHandler,
 } from '../controllers/institution-admin.controller.js';
 
 const router = Router();
@@ -60,6 +61,13 @@ router.patch(
   requireRole('CollegeAdmin'),
   validateParams(objectIdParamSchema),
   rejectHandler,
+);
+router.post(
+  '/faculty/:id/resend-invite',
+  authenticate,
+  requireRole('CollegeAdmin'),
+  validateParams(objectIdParamSchema),
+  resendInviteHandler,
 );
 // CA-01 offboarding — revoke an unclaimed invite (body.purge=true) or
 // detach a claimed roster member (body.purge omitted / false).

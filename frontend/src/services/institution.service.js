@@ -44,6 +44,16 @@ export async function offboardFaculty(id, { purge = false } = {}) {
   return data;
 }
 
+// Re-issue the onboarding token + resend the invite email. Server
+// refuses to resend to accounts that already have a password
+// (ALREADY_ONBOARDED) or that belong to another institution
+// (FORBIDDEN). Old links become invalid on success — the fresh token
+// invalidates the previous hash.
+export async function resendFacultyInvite(id) {
+  const { data } = await api.post(`/institutions/faculty/${id}/resend-invite`);
+  return data;
+}
+
 export async function listFacultyRoster(params = {}) {
   const { data } = await api.get('/institutions/faculty/roster', { params });
   return data;

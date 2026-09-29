@@ -51,6 +51,17 @@ export async function bulkInviteHandler(req, res) {
   }
 }
 
+export async function resendInviteHandler(req, res) {
+  try {
+    const result = await inviteService.resendInviteByActor(req.user.id, req.params.id);
+    return res.status(200).json(result);
+  } catch (error) {
+    return res.status(error.status || 500).json({
+      error: { code: error.code || 'RESEND_FAILED', message: error.message },
+    });
+  }
+}
+
 export async function offboardHandler(req, res) {
   const parsed = offboardFacultySchema.safeParse(req.body || {});
   if (!parsed.success) return validationError(res, parsed);

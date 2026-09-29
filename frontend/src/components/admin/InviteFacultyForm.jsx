@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Upload, UserPlus, Loader2, CheckCircle2, AlertCircle } from 'lucide-react';
+import { Upload, UserPlus, Loader2, CheckCircle2, AlertCircle, Download } from 'lucide-react';
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
 import { Label } from '../ui/Label';
@@ -7,6 +7,28 @@ import { Alert, AlertDescription } from '../ui/Alert';
 import SectionCard from '../dashboard/SectionCard';
 import { useToast } from '../ui/Toast';
 import { inviteFaculty, bulkInviteFaculty } from '../../services/institution.service';
+
+// Sample rows in the template match the real format the parser accepts
+// (name,email; header row optional). Emails intentionally use
+// example.edu so a curious admin trying "just click Publish" won't
+// spam a real inbox.
+const CSV_TEMPLATE = `name,email
+Dr. R. Kumar,rkumar@example.edu
+Prof. S. Iyer,siyer@example.edu
+Dr. A. Menon,amenon@example.edu
+`;
+
+function downloadCsvTemplate() {
+  const blob = new Blob([CSV_TEMPLATE], { type: 'text/csv;charset=utf-8' });
+  const url = window.URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = 'facultyconnect-bulk-invite-template.csv';
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  window.URL.revokeObjectURL(url);
+}
 
 const CSV_MAX_BYTES = 500_000; // 500 KB — 500 invite rows is well under this
 
@@ -323,17 +345,26 @@ export default function InviteFacultyForm({ onInvited }) {
             </Alert>
           )}
 
-          <label className="inline-flex items-center gap-2 cursor-pointer rounded-md border-2 border-dashed border-border bg-muted/40 hover:border-primary/40 hover:bg-primary/5 transition-colors px-5 py-4 text-sm text-text-light">
-            <Upload size={16} className="text-primary" />
-            <span className="font-semibold">Choose CSV file</span>
-            <input
-              type="file"
-              accept=".csv,text/csv"
-              onChange={onCsvFile}
-              disabled={csvSubmitting}
-              className="sr-only"
-            />
-          </label>
+          <div className="flex items-center gap-3 flex-wrap">
+            <label className="inline-flex items-center gap-2 cursor-pointer rounded-md border-2 border-dashed border-border bg-muted/40 hover:border-primary/40 hover:bg-primary/5 transition-colors px-5 py-4 text-sm text-text-light">
+              <Upload size={16} className="text-primary" />
+              <span className="font-semibold">Choose CSV file</span>
+              <input
+                type="file"
+                accept=".csv,text/csv"
+                onChange={onCsvFile}
+                disabled={csvSubmitting}
+                className="sr-only"
+              />
+            </label>
+            <button
+              type="button"
+              onClick={downloadCsvTemplate}
+              className="inline-flex items-center gap-1.5 text-xs font-semibold text-primary hover:underline"
+            >
+              <Download size={13} /> Download template.csv
+            </button>
+          </div>
 
           <details className="text-xs text-text-muted">
             <summary className="cursor-pointer font-semibold hover:text-text-light">

@@ -12,6 +12,8 @@ import {
   Ban,
   Trash2,
   UserMinus,
+  Send,
+  AlertTriangle,
 } from 'lucide-react';
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
@@ -24,6 +26,7 @@ import {
   approveFaculty,
   rejectFaculty,
   offboardFaculty,
+  resendFacultyInvite,
 } from '../../services/institution.service';
 
 const STATUS_TABS = [
@@ -33,8 +36,18 @@ const STATUS_TABS = [
   { key: 'all', label: 'All', icon: Users },
 ];
 
-function StatusPill({ status, awaitingOnboarding }) {
+function StatusPill({ status, awaitingOnboarding, inviteExpired }) {
   if (awaitingOnboarding) {
+    // Expired invite is a distinct state from "still valid, hasn't
+    // clicked yet" — colour it more urgently so the admin knows to
+    // resend rather than just wait.
+    if (inviteExpired) {
+      return (
+        <span className="inline-flex items-center gap-1 rounded-full border bg-danger/10 text-danger border-danger/30 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider">
+          <AlertTriangle size={11} /> Invite expired
+        </span>
+      );
+    }
     return (
       <span className="inline-flex items-center gap-1 rounded-full border bg-yellow-100 text-yellow-700 border-yellow-300 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider">
         <Hourglass size={11} /> Awaiting onboarding
@@ -69,7 +82,7 @@ function StatusPill({ status, awaitingOnboarding }) {
   );
 }
 
-function FacultyRow({ item, onApprove, onReject, onOffboard, busy }) {
+function FacultyRow({ item, onApprove, onReject, onOffboard, onResend, busy }) {
   const [showReject, setShowReject] = useState(false);
   const [reason, setReason] = useState('');
   // CA-01 offboard confirm state. Two flavours:
@@ -118,6 +131,7 @@ function FacultyRow({ item, onApprove, onReject, onOffboard, busy }) {
           <StatusPill
             status={item.verificationStatus}
             awaitingOnboarding={item.awaitingOnboarding}
+            inviteExpired={item.inviteExpired}
           />
           {isPending && (
             <div className="flex items-center gap-1.5">
@@ -147,17 +161,34 @@ function FacultyRow({ item, onApprove, onReject, onOffboard, busy }) {
               the admin knows whether they're deleting a placeholder or
               detaching a real account. */}
           {item.awaitingOnboarding ? (
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => setConfirmOffboard('revoke')}
-              disabled={busy}
-              className="border-danger/30 text-danger hover:bg-danger/5"
-              title="Cancel this invite. The placeholder account will be deleted since no password was ever set."
-            >
-              <Trash2 size={12} className="mr-1" />
-              Revoke invite
-            </Button>
+            <div className="flex items-center gap-1.5 flex-wrap justify-end">
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => onResend(item)}
+                disabled={busy}
+                className="border-primary/40 text-primary hover:bg-primary/5"
+                title={
+                  item.inviteExpired
+                    ? 'The previous invite link expired. Send a fresh one.'
+                    : 'Resend the invitation email with a fresh onboarding link.'
+                }
+              >
+                <Send size={12} className="mr-1" />
+                Resend
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => setConfirmOffboard('revoke')}
+                disabled={busy}
+                className="border-danger/30 text-danger hover:bg-danger/5"
+                title="Cancel this invite. The placeholder account will be deleted since no password was ever set."
+              >
+                <Trash2 size={12} className="mr-1" />
+                Revoke
+              </Button>
+            </div>
           ) : (
             !isPending && (
               <Button
@@ -349,6 +380,27 @@ export default function FacultyRoster() {
     }
   };
 
+  const doResend = async item => {
+    setBusy(true);
+    try {
+      await resendFacultyInvite(item.id);
+      toast({
+        title: 'Invite resent',
+        description: `${item.email} will get a fresh onboarding link. The previous link is now invalid.`,
+        variant: 'success',
+      });
+      refresh();
+    } catch (err) {
+      toast({
+        title: 'Could not resend invite',
+        description: err.response?.data?.error?.message || 'Please try again',
+        variant: 'error',
+      });
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const doOffboard = async (id, { purge }) => {
     setBusy(true);
     try {
@@ -468,6 +520,7 @@ export default function FacultyRoster() {
                 onApprove={doApprove}
                 onReject={doReject}
                 onOffboard={doOffboard}
+                onResend={doResend}
                 busy={busy}
               />
             ))}

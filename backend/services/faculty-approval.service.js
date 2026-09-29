@@ -20,6 +20,14 @@ async function resolveActorInstitution(actorId) {
  * needs to make decisions but nothing more.
  */
 function serialize(f) {
+  const awaiting = !f.passwordHash;
+  // Only meaningful when awaiting onboarding — a claimed faculty has
+  // token fields cleared anyway. Exposed so the roster UI can badge
+  // "Expired" separately from "Invited" and offer a Resend action.
+  const inviteExpired =
+    awaiting &&
+    Boolean(f.onboardingTokenExpires) &&
+    f.onboardingTokenExpires.getTime() < Date.now();
   return {
     id: f._id.toString(),
     name: f.name,
@@ -27,8 +35,10 @@ function serialize(f) {
     designation: f.designation,
     department: f.department || '',
     verificationStatus: f.verificationStatus,
-    awaitingOnboarding: !f.passwordHash,
+    awaitingOnboarding: awaiting,
+    inviteExpired,
     invitedAt: f.invitedAt,
+    inviteExpiresAt: awaiting ? f.onboardingTokenExpires || null : null,
     createdAt: f.createdAt,
     lastLogin: f.lastLogin,
   };
