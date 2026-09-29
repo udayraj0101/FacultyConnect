@@ -199,6 +199,39 @@ export async function getCollegeAdminOverview(requesterId) {
     }).distinct('_id'),
   ]);
 
+  // Time-to-fill uses (updatedAt - createdAt) as the proxy for
+  // (closedAt - postedAt) — we don't track a dedicated closedAt
+  // timestamp, and the most-recent updatedAt on a closed/archived
+  // posting is the status-transition write. Not exact if the admin
+  // edited the posting after closing it (rare), but robust enough for
+  // an aggregate. Only closed + archived counted; drafts and still-
+  // open jobs haven't been "filled" so they're excluded.
+  const timeToFillAgg = await Job.aggregate([
+    {
+      $match: {
+        institutionId: institution._id,
+        status: { $in: ['closed', 'archived'] },
+      },
+    },
+    {
+      $project: {
+        daysToFill: {
+          $divide: [
+            { $subtract: ['$updatedAt', '$createdAt'] },
+            1000 * 60 * 60 * 24,
+          ],
+        },
+      },
+    },
+    {
+      $group: {
+        _id: null,
+        avgDaysToFill: { $avg: '$daysToFill' },
+        count: { $sum: 1 },
+      },
+    },
+  ]);
+
   const totalPublications = facultyIds.length
     ? await Publication.countDocuments({ facultyId: { $in: facultyIds } })
     : 0;
@@ -222,6 +255,44 @@ export async function getCollegeAdminOverview(requesterId) {
     topDomains: topDomains.map(d => ({ tag: d._id, count: d.count })),
   };
 
+  // Funnel — combines the pipeline breakdown with conversion rates
+  // and time-to-fill. `stages` is ordered so the frontend can render a
+  // funnel viz without knowing the pipeline order itself. Conversion
+  // rates are stage-to-next-stage (applied → shortlisted, etc.) not
+  // top-of-funnel (all vs closed) — the CA sheet's "stage conversion"
+  // is the more actionable measure.
+  const shortlistPlusDown = appCounts.shortlisted + appCounts.interview + appCounts.closed;
+  const interviewPlusDown = appCounts.interview + appCounts.closed;
+  const rate = (num, denom) =>
+    denom > 0 ? Math.round((num / denom) * 100) : null;
+  const funnel = {
+    // Stages are per-application (unit: candidates), ordered top→bottom
+    // of the funnel. Each "value" is the count that reached that stage
+    // OR beyond — so shortlisted includes people who moved onward to
+    // interview/closed. Matches how recruiting funnels are normally
+    // drawn (widest at top).
+    stages: [
+      { key: 'applied', label: 'Applications received', value: totalApplications },
+      { key: 'shortlisted', label: 'Shortlisted', value: shortlistPlusDown },
+      { key: 'interview', label: 'Interview', value: interviewPlusDown },
+      { key: 'closed', label: 'Closed', value: appCounts.closed },
+    ],
+    conversions: {
+      // Stage-to-next-stage rates (not top-of-funnel). "Received but
+      // still in `applied`" is legitimately under review — those
+      // candidates haven't chosen to advance yet, so they don't count
+      // as an advancement failure.
+      appliedToShortlisted: rate(shortlistPlusDown, totalApplications),
+      shortlistedToInterview: rate(interviewPlusDown, shortlistPlusDown),
+      interviewToClosed: rate(appCounts.closed, interviewPlusDown),
+    },
+    avgTimeToFillDays:
+      timeToFillAgg[0]?.avgDaysToFill != null
+        ? Math.round(timeToFillAgg[0].avgDaysToFill * 10) / 10
+        : null,
+    closedJobsCount: timeToFillAgg[0]?.count || 0,
+  };
+
   return {
     institution: {
       id: institution._id.toString(),
@@ -238,6 +309,7 @@ export async function getCollegeAdminOverview(requesterId) {
       facultyLinked,
     },
     applicantsBreakdown: appCounts,
+    funnel,
     research,
     recentJobs: recentJobs.map(j => ({
       id: j._id.toString(),

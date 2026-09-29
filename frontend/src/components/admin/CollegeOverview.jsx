@@ -8,10 +8,11 @@ import {
   TrendingUp,
   FileText,
   IndianRupee,
+  Clock,
+  ChevronDown,
 } from 'lucide-react';
 import HeroBanner from '../dashboard/HeroBanner';
 import StatCard from '../dashboard/StatCard';
-import BreakdownBar from '../dashboard/BreakdownBar';
 import DataTable from '../dashboard/DataTable';
 import SectionCard from '../dashboard/SectionCard';
 import { SkeletonList } from '../ui/Skeleton';
@@ -83,9 +84,15 @@ export default function CollegeOverview({ onOpenSection }) {
     );
   }
 
-  const { institution, counts, applicantsBreakdown, recentJobs, research } = data;
+  const { institution, counts, recentJobs, research, funnel } = data;
   const totalApps = counts.totalApplications;
   const hasResearchData = research && research.verifiedFaculty > 0;
+
+  // Funnel bar widths — scale each stage to the top-of-funnel count so
+  // the visual drop-off is proportional. Falls back to a small min
+  // width so a stage with zero candidates is still visible as a hairline.
+  const funnelTop = funnel?.stages?.[0]?.value || 0;
+  const funnelStageColors = ['#6C5CE7', '#F59E0B', '#00B894', '#64748B'];
 
   return (
     <div className="space-y-6">
@@ -288,16 +295,57 @@ export default function CollegeOverview({ onOpenSection }) {
           />
         </SectionCard>
 
-        <BreakdownBar
-          title="Applicant pipeline"
-          items={[
-            { label: 'Applied', value: applicantsBreakdown.applied, color: '#6C5CE7' },
-            { label: 'Shortlisted', value: applicantsBreakdown.shortlisted, color: '#F59E0B' },
-            { label: 'Interview', value: applicantsBreakdown.interview, color: '#00B894' },
-            { label: 'Closed', value: applicantsBreakdown.closed, color: '#64748B' },
-          ]}
-          total={totalApps || 1}
-        />
+        <SectionCard
+          title="Recruitment funnel"
+          subtitle={
+            funnel?.avgTimeToFillDays != null
+              ? `Avg time-to-fill: ${funnel.avgTimeToFillDays} days (${funnel.closedJobsCount} closed postings)`
+              : 'Close a posting to see the average time-to-fill.'
+          }
+        >
+          {funnelTop === 0 ? (
+            <div className="text-xs text-text-muted italic text-center py-6">
+              No applications yet — the funnel populates as candidates apply.
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {funnel.stages.map((stage, i) => {
+                const width = Math.max((stage.value / funnelTop) * 100, 3);
+                const color = funnelStageColors[i] || funnelStageColors[0];
+                const conversionKey = ['appliedToShortlisted', 'shortlistedToInterview', 'interviewToClosed'][i];
+                const conversion = conversionKey ? funnel.conversions[conversionKey] : null;
+                return (
+                  <React.Fragment key={stage.key}>
+                    <div>
+                      <div className="flex items-center justify-between text-[11px] mb-1">
+                        <span className="font-semibold text-text-light">
+                          {stage.label}
+                        </span>
+                        <span className="text-text-muted tabular-nums">
+                          {stage.value}
+                        </span>
+                      </div>
+                      <div className="h-6 rounded-md bg-muted overflow-hidden">
+                        <div
+                          className="h-full rounded-md transition-all"
+                          style={{ width: `${width}%`, backgroundColor: color }}
+                        />
+                      </div>
+                    </div>
+                    {i < funnel.stages.length - 1 && (
+                      <div className="flex items-center justify-center text-[10px] text-text-muted -my-0.5">
+                        <ChevronDown size={12} className="opacity-60" />
+                        <span className="ml-1 tabular-nums">
+                          {conversion != null ? `${conversion}%` : '—'} conv.
+                        </span>
+                      </div>
+                    )}
+                  </React.Fragment>
+                );
+              })}
+            </div>
+          )}
+        </SectionCard>
       </div>
     </div>
   );
