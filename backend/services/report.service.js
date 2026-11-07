@@ -61,6 +61,7 @@ export async function create({ reporterId, targetType, targetId, category, reaso
     reason,
     status: 'open',
     slaDeadline: Report.slaDeadlineFromNow(),
+    resolutionDeadline: Report.resolutionDeadlineFromNow(),
   });
   logger.info('report created', {
     reportId: doc._id.toString(),

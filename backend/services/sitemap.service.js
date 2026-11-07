@@ -2,6 +2,13 @@ import { Faculty } from '../models/Faculty.js';
 
 const SITEMAP_LIMIT = 50_000; // XML sitemap spec cap per file
 
+// Mirrors publicHtml.service.js — staging / dev return an empty sitemap
+// so crawlers never discover the test corpus. Prod sets
+// PUBLIC_INDEXING_ENABLED=true in .env to opt in.
+function isPublicIndexingEnabled() {
+  return String(process.env.PUBLIC_INDEXING_ENABLED || '').toLowerCase() === 'true';
+}
+
 function escapeXml(s) {
   return String(s || '')
     .replace(/&/g, '&amp;')
@@ -20,6 +27,15 @@ function escapeXml(s) {
  * sitemap index. Deferring that until we're anywhere close.
  */
 export async function generatePublicProfileSitemap(baseUrl) {
+  // Short-circuit on staging — return an empty but valid sitemap so
+  // crawlers that hit /sitemap.xml get a clean 200 with nothing to
+  // follow. Keeps test data out of Google.
+  if (!isPublicIndexingEnabled()) {
+    return `<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+</urlset>`;
+  }
+
   const docs = await Faculty.find({
     publicProfileEnabled: true,
     role: 'Faculty',

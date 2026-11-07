@@ -20,9 +20,16 @@ export const CATEGORY_LABELS = {
   other: 'Other',
 };
 
-// Per IT Rules 2021 (PRD §3.6, §8): grievance acknowledgment SLA 24–72 hr.
-// We use 72h as the operational deadline; UI highlights entries running out.
-const SLA_HOURS = 72;
+// IT Rules 2021, Rule 3(2)(a): grievances must be ACKNOWLEDGED within
+// 24 hours and RESOLVED within 15 days. We stamp both deadlines at
+// report creation so the admin console can show two independent timers
+// and auto-flag SLA breaches for audit.
+//
+// History: this constant was 72 hours before Oct 2026. QA report
+// flagged the mismatch with the statute; bumped to the lower 24h
+// bound. Don't widen without a legal review.
+const ACK_SLA_HOURS = 24;
+const RESOLUTION_SLA_DAYS = 15;
 
 const reportSchema = new mongoose.Schema(
   {
@@ -44,7 +51,14 @@ const reportSchema = new mongoose.Schema(
     category: { type: String, enum: CATEGORIES, required: true },
     reason: { type: String, required: true, minlength: 10, maxlength: 1000 },
     status: { type: String, enum: STATUSES, default: 'open', index: true },
+    // slaDeadline retained as the ACK deadline for schema compatibility —
+    // existing rows + admin console copy already read this field. The
+    // new resolutionDeadline is additive.
     slaDeadline: { type: Date, required: true, index: true },
+    // Nullable on the schema so legacy rows (pre Oct 2026 patch) still
+    // load — `resolutionOverdue` just stays false for them. New rows
+    // are always populated by report.service.js on create.
+    resolutionDeadline: { type: Date, default: null, index: true },
     acknowledgedAt: { type: Date, default: null },
     resolvedAt: { type: Date, default: null },
     reviewedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'Faculty', default: null },
@@ -54,7 +68,11 @@ const reportSchema = new mongoose.Schema(
 );
 
 reportSchema.statics.slaDeadlineFromNow = function slaDeadlineFromNow() {
-  return new Date(Date.now() + SLA_HOURS * 60 * 60 * 1000);
+  return new Date(Date.now() + ACK_SLA_HOURS * 60 * 60 * 1000);
+};
+
+reportSchema.statics.resolutionDeadlineFromNow = function resolutionDeadlineFromNow() {
+  return new Date(Date.now() + RESOLUTION_SLA_DAYS * 24 * 60 * 60 * 1000);
 };
 
 reportSchema.methods.toPublicJSON = function toPublicJSON() {
@@ -78,8 +96,18 @@ reportSchema.methods.toPublicJSON = function toPublicJSON() {
     categoryLabel: CATEGORY_LABELS[this.category] || this.category,
     reason: this.reason,
     status: this.status,
+    // Two SLAs per IT Rules 2021 Rule 3(2)(a): 24h acknowledgment +
+    // 15-day resolution. slaDeadline = ACK deadline (name kept for
+    // backward compat with existing admin console copy); overdue flag
+    // only fires when status is still 'open' (acknowledgment is the
+    // transition from open → acknowledged).
     slaDeadline: this.slaDeadline,
     slaOverdue: this.slaDeadline && this.slaDeadline < new Date() && this.status === 'open',
+    resolutionDeadline: this.resolutionDeadline,
+    resolutionOverdue:
+      this.resolutionDeadline &&
+      this.resolutionDeadline < new Date() &&
+      !['resolved', 'dismissed'].includes(this.status),
     acknowledgedAt: this.acknowledgedAt,
     resolvedAt: this.resolvedAt,
     reviewedBy: reviewerPopulated,
@@ -90,4 +118,4 @@ reportSchema.methods.toPublicJSON = function toPublicJSON() {
 };
 
 export const Report = mongoose.model('Report', reportSchema);
-export { TARGET_TYPES, STATUSES, CATEGORIES, SLA_HOURS };
+export { TARGET_TYPES, STATUSES, CATEGORIES, ACK_SLA_HOURS, RESOLUTION_SLA_DAYS };

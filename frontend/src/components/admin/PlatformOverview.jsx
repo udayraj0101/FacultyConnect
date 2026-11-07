@@ -142,7 +142,7 @@ export default function PlatformOverview({ onOpenSection }) {
               <AlertTriangle size={16} />
               <span>
                 <span className="font-semibold">{reports.overdue}</span> grievance
-                {reports.overdue === 1 ? '' : 's'} past the 72-hour SLA.
+                {reports.overdue === 1 ? '' : 's'} past the 24-hour acknowledgment SLA.
               </span>
             </span>
             <button

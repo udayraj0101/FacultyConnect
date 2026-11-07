@@ -99,11 +99,15 @@ const PROFILES = [
         },
       ],
       externalLinks: {
-        website: 'https://ananyakrishnan.in',
-        linkedin: 'https://linkedin.com/in/ananya-krishnan',
-        googleScholar: 'https://scholar.google.com/citations?user=demo-ananya',
-        github: 'https://github.com/ananyakrishnan',
-        twitter: 'https://x.com/ananyakr',
+        // All seed external links use example.com paths — real-looking
+        // LinkedIn/Scholar/GitHub/X handles would create defamation
+        // risk if a real person's path pattern collides with our made-
+        // up test profile data (QA report Oct 2026).
+        website: 'https://example.com/ananya-krishnan',
+        linkedin: 'https://example.com/linkedin/demo-ananya-krishnan',
+        googleScholar: 'https://example.com/scholar/demo-ananya',
+        github: 'https://example.com/github/demo-ananya',
+        twitter: 'https://example.com/x/demo-ananya',
       },
     },
   },
@@ -184,9 +188,9 @@ const PROFILES = [
         },
       ],
       externalLinks: {
-        website: 'https://nitt.edu/home/academics/departments/eee/faculty/rajesh-iyer',
-        linkedin: 'https://linkedin.com/in/rajesh-iyer-nitt',
-        googleScholar: 'https://scholar.google.com/citations?user=demo-rajesh',
+        website: 'https://example.com/rajesh-iyer-nitt',
+        linkedin: 'https://example.com/linkedin/demo-rajesh-iyer',
+        googleScholar: 'https://example.com/scholar/demo-rajesh',
         github: '',
         twitter: '',
       },
@@ -255,8 +259,8 @@ const PROFILES = [
       ],
       externalLinks: {
         website: '',
-        linkedin: 'https://linkedin.com/in/priya-menon-caos',
-        googleScholar: 'https://scholar.google.com/citations?user=demo-priya',
+        linkedin: 'https://example.com/linkedin/demo-priya-menon',
+        googleScholar: 'https://example.com/scholar/demo-priya',
         github: '',
         twitter: '',
       },

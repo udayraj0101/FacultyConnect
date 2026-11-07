@@ -591,8 +591,9 @@ function ReportsSection() {
       <div>
         <h2 className="text-xl font-extrabold text-secondary">Reports & Grievances</h2>
         <p className="text-text-muted text-sm mt-1">
-          Flagged opportunities, jobs, and faculty accounts. Per IT Rules 2021, every open report
-          must be acknowledged within 72 hours — overdue rows are flagged in red.
+          Flagged opportunities, jobs, and faculty accounts. Per IT Rules 2021 Rule 3(2)(a),
+          every open report must be acknowledged within <strong>24 hours</strong> and
+          resolved within <strong>15 days</strong> — overdue rows are flagged in red.
         </p>
       </div>
 
@@ -600,8 +601,8 @@ function ReportsSection() {
         <Alert variant="destructive">
           <AlertDescription>
             <span className="font-semibold">{overdueCount}</span> open report
-            {overdueCount === 1 ? ' is' : 's are'} past the 72-hour SLA. Acknowledge or resolve
-            immediately.
+            {overdueCount === 1 ? ' is' : 's are'} past the 24-hour acknowledgment SLA.
+            Acknowledge or resolve immediately.
           </AlertDescription>
         </Alert>
       )}

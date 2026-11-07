@@ -38,7 +38,7 @@ export default function ReportModal({ targetType, targetId, targetLabel, onClose
       toast({
         title: 'Report filed',
         description:
-          'The Grievance Officer will acknowledge within 72 hours per IT Rules 2021.',
+          'The Grievance Officer will acknowledge within 24 hours and resolve within 15 days (IT Rules 2021).',
         variant: 'success',
       });
       onSubmitted?.(report);
@@ -134,7 +134,8 @@ export default function ReportModal({ targetType, targetId, targetLabel, onClose
 
               <div className="text-[11px] text-text-muted italic">
                 Reports are rate-limited to 5 per day. False or malicious reports may result in
-                account action. The Grievance Officer will review within 72 hours.
+                account action. The Grievance Officer acknowledges within 24 hours and
+                resolves within 15 days (IT Rules 2021).
               </div>
 
               <div className="flex gap-2 justify-end">

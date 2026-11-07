@@ -9,6 +9,17 @@ const logger = createLogger('public-html');
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const DIST_INDEX_PATH = path.resolve(__dirname, '../../frontend/dist/index.html');
 
+/**
+ * Staging / dev defaults to noindex so our test data (made-up awards,
+ * placeholder ORCID iDs, seed social handles) never leaks into Google.
+ * Prod must explicitly opt in with PUBLIC_INDEXING_ENABLED=true. Keep
+ * the var name blunt — easy to grep for before any new environment
+ * is spun up.
+ */
+function isPublicIndexingEnabled() {
+  return String(process.env.PUBLIC_INDEXING_ENABLED || '').toLowerCase() === 'true';
+}
+
 // In-memory cache of the frontend shell — the build hash rarely changes
 // within a process lifetime, so re-reading on every request is wasted IO.
 // If the dist is rebuilt, the process should be restarted anyway.
@@ -113,7 +124,7 @@ function buildMetaBlock(profile, canonical) {
     <meta name="twitter:card" content="summary" />
     <meta name="twitter:title" content="${escapeAttr(profile.name)}" />
     <meta name="twitter:description" content="${escapeAttr(description)}" />
-    <meta name="robots" content="index,follow" />
+    <meta name="robots" content="${isPublicIndexingEnabled() ? 'index,follow' : 'noindex,nofollow'}" />
     <script type="application/ld+json">${JSON.stringify(jsonLd)}</script>
   `.trim();
 }

@@ -20,7 +20,13 @@ const DEMO = {
       designation: 'Associate',
       institutionDomain: 'iitm.ac.in',
       domainTags: ['Machine Learning', 'Natural Language Processing', 'Educational Technology'],
-      orcidId: '0000-0002-1825-0097',
+      // 0000-0000-0000-0000 is an obviously-invalid placeholder — it
+      // fails the ORCID checksum, so any visitor who clicks through
+      // gets a 404 instead of landing on a real researcher's page.
+      // The previous value (ORCID's sample "Josiah Carberry" record)
+      // was publicly resolvable and Shakti's QA report flagged it as
+      // defamation-adjacent when attached to a made-up Indian name.
+      orcidId: '0000-0000-0000-0000',
       citationCount: 1284,
       hIndex: 18,
       i10Index: 27,
