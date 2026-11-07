@@ -207,6 +207,16 @@ facultySchema.methods.toDirectoryJSON = function toDirectoryJSON() {
   // Professional-profile fields (bio, employment, education, awards,
   // grants, external links) DO surface here — that's the whole point of
   // opting in to directory visibility.
+  //
+  // DELIBERATELY EXCLUDED from this serialiser (per QA report Oct 2026):
+  //   - casManualInputs — self-reported counts of PhDs supervised,
+  //     consultancy ₹ lakhs, books, chapters etc. These are competitive
+  //     intelligence for faculty and must stay private. Available via
+  //     the user's own /me (toPublicJSON) + /me/cv/export.
+  //   - vidwanId — the INFLIBNET Vidwan numeric ID. Not a secret (the
+  //     Vidwan page itself is public on INFLIBNET) but we leaked it
+  //     here without any UI consuming it. "Send only what the screen
+  //     renders" rule.
   return {
     id: this._id.toString(),
     name: this.name,
@@ -214,7 +224,6 @@ facultySchema.methods.toDirectoryJSON = function toDirectoryJSON() {
     department: this.department || '',
     bio: this.bio || '',
     orcidId: this.orcidId,
-    vidwanId: this.vidwanId || null,
     domainTags: this.domainTags || [],
     citationCount: this.citationCount,
     hIndex: this.hIndex,
@@ -233,7 +242,6 @@ facultySchema.methods.toDirectoryJSON = function toDirectoryJSON() {
       github: this.externalLinks?.github || '',
       twitter: this.externalLinks?.twitter || '',
     },
-    casManualInputs: sanitiseCasManualInputs(this.casManualInputs),
   };
 };
 
