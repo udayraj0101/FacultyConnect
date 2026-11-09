@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { authenticate } from '../middleware/auth.middleware.js';
 import { requireRole } from '../middleware/requireRole.js';
+import { requireVerifiedFaculty } from '../middleware/requireVerifiedFaculty.js';
 import { validateParams, objectIdParamSchema } from '../middleware/validate.js';
 import {
   createHandler,
@@ -34,10 +35,15 @@ router.get(
 );
 router.get('/:id', validateParams(objectIdParamSchema), detailHandler);
 router.post('/', authenticate, requireRole('CollegeAdmin', 'PlatformAdmin'), createHandler);
+// QA #6: apply is a trust-minting action from the admin's POV ("a
+// verified researcher applied for my posting"). Gate on the faculty's
+// verified status so unverified / pending accounts can't submit an
+// application that misrepresents them as a confirmed researcher.
 router.post(
   '/:id/apply',
   authenticate,
   requireRole('Faculty', 'CollegeAdmin'),
+  requireVerifiedFaculty,
   validateParams(objectIdParamSchema),
   applyHandler,
 );

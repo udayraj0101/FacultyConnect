@@ -296,9 +296,27 @@ export default function Signup() {
                   disabled={submitting}
                 />
                 <span>
-                  <ShieldCheck size={12} className="inline text-success mr-1" />I consent to
-                  FacultyConnect processing my profile and publication data per the{' '}
-                  <strong>DPDP Act 2023</strong>.
+                  <ShieldCheck size={12} className="inline text-success mr-1" />
+                  I have read and agree to the{' '}
+                  <a
+                    href="/privacy"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-primary underline font-semibold"
+                  >
+                    Privacy Policy
+                  </a>{' '}
+                  and{' '}
+                  <a
+                    href="/terms"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-primary underline font-semibold"
+                  >
+                    Terms
+                  </a>
+                  , and consent to FacultyConnect processing my profile and publication
+                  data per the <strong>DPDP Act 2023</strong>.
                 </span>
               </label>
 

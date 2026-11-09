@@ -633,9 +633,9 @@ export default function Landing() {
           <div className="max-w-6xl mx-auto border-t border-slate-200/60 pt-6 flex flex-wrap justify-between items-center gap-4 text-xs text-slate-500">
             <span>&copy; {new Date().getFullYear()} FacultyConnect. All rights reserved.</span>
             <div className="flex gap-6">
-              <a className="hover:text-primary cursor-pointer">Privacy</a>
-              <a className="hover:text-primary cursor-pointer">Terms</a>
-              <a className="hover:text-primary cursor-pointer">Grievance Officer</a>
+              <Link to="/privacy" className="hover:text-primary">Privacy</Link>
+              <Link to="/terms" className="hover:text-primary">Terms</Link>
+              <Link to="/grievance" className="hover:text-primary">Grievance Officer</Link>
             </div>
           </div>
         </footer>

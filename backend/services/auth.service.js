@@ -48,11 +48,21 @@ export async function signup({ name, email, password, designation, institutionId
     err.status = 409;
     throw err;
   }
-  // If the signup includes an institution, the account starts as PENDING
-  // — the college admin at that institution must approve it. Signups
-  // without an institution get created verified (no one to approve them).
+  // Every new account starts as PENDING. QA report Oct 2026 flagged a
+  // trust-boundary bug — unaffiliated accounts (example.edu, personal
+  // email, no institution) were being auto-verified, which let them
+  // appear in Directory search + send connect requests + apply to jobs
+  // as a "confirmed identity". Now:
+  //   - with institutionId → pending (College Admin at that institution
+  //     approves them, same as before)
+  //   - without institutionId → still pending (Platform Admin reviews +
+  //     flips to verified after a document check)
+  // Routes that mint trust (directory search results, connect-request
+  // send, job apply) already gate on verificationStatus === 'verified'
+  // via requireVerifiedFaculty middleware (or will, per #6 of the QA
+  // report — see the related guard commit).
   let resolvedInstitutionId = null;
-  let verificationStatus = 'verified';
+  const verificationStatus = 'pending';
   if (institutionId) {
     if (!mongoose.isValidObjectId(institutionId)) {
       const err = new Error('Invalid institution');
@@ -68,7 +78,6 @@ export async function signup({ name, email, password, designation, institutionId
       throw err;
     }
     resolvedInstitutionId = inst._id;
-    verificationStatus = 'pending';
   }
   const passwordHash = await bcrypt.hash(password, BCRYPT_ROUNDS);
   const faculty = await Faculty.create({
